@@ -74,7 +74,7 @@ namespace Piccolo
             {
                 for (auto& node : animation_component->getResult().m_node)
                 {
-                    Pilot::SkeletonAnimationResultTransform tmp {Matrix4x4(node.m_transform)};
+                    Piccolo::SkeletonAnimationResultTransform tmp {Matrix4x4(node.m_transform)};
                     animation_result.m_transforms.push_back(tmp);
                 }
             }

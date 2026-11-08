@@ -13,7 +13,7 @@
 
 #include <limits>
 
-namespace Pilot
+namespace Piccolo
 {
     Level::~Level() { clear(); }
 

@@ -4,7 +4,7 @@
 #include "runtime/resource/res_type/components/rigid_body.h"
 #include "runtime/resource/res_type/data/basic_shape.h"
 
-namespace Pilot
+namespace Piccolo
 {
     enum SweepPass
     {

@@ -14,7 +14,7 @@
 #include "runtime/function/input/input_system.h"
 #include "runtime/function/physics/physics_scene.h"
 
-namespace Pilot
+namespace Piccolo
 {
     void MotorComponent::postLoadResource(std::weak_ptr<GObject> parent_object)
     {
@@ -236,4 +236,9 @@ namespace Pilot
         m_target_position = final_position;
     }
 
-} // namespace Pilot
+    void MotorComponent::getOffStuckDead()
+    {
+        LOG_INFO("Some get off stuck dead logic");
+    }
+
+} // namespace Piccolo

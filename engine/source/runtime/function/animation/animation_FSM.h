@@ -2,7 +2,7 @@
 #include <functional>
 #include <json11.hpp>
 #include <vector>
-namespace Pilot
+namespace Piccolo
 {
     class AnimationFSM
     {

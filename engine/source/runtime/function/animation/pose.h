@@ -2,7 +2,7 @@
 #include "runtime/resource/res_type/data/animation_clip.h"
 #include "runtime/resource/res_type/data/animation_skeleton_node_map.h"
 #include "runtime/resource/res_type/data/blend_state.h"
-namespace Pilot
+namespace Piccolo
 {
     class AnimationPose
     {

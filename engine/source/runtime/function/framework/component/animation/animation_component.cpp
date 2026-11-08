@@ -4,7 +4,7 @@
 #include "runtime/function/framework/object/object.h"
 #include <runtime/engine.h>
 
-namespace Pilot
+namespace Piccolo
 {
     void AnimationComponent::postLoadResource(std::weak_ptr<GObject> parent_object)
     {
