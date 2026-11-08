@@ -1,6 +1,14 @@
 // SPDX-FileCopyrightText: 2021 Jorrit Rouwe
 // SPDX-License-Identifier: MIT
 
+// 确保包含这些头文件
+#include <chrono>
+#include <thread>
+
+// 添加这行来启用用户定义字面量
+using namespace std::chrono_literals;
+
+
 #include <Jolt/Jolt.h>
 
 #include <Jolt/Core/JobSystemThreadPool.h>
@@ -112,7 +120,7 @@ void JobSystemThreadPool::BarrierImpl::AddJob(const JobHandle &inJob)
 		while (write_index - mJobReadIndex >= cMaxJobs)
 		{
 			JPH_ASSERT(false, "Barrier full, stalling!");
-			this_thread::sleep_for(100us);
+			this_thread::sleep_for(chrono::microseconds(100));
 		}
 		mJobs[write_index & (cMaxJobs - 1)] = job;
 	}
@@ -148,7 +156,7 @@ void JobSystemThreadPool::BarrierImpl::AddJobs(const JobHandle *inHandles, uint 
 			while (write_index - mJobReadIndex >= cMaxJobs)
 			{
 				JPH_ASSERT(false, "Barrier full, stalling!");
-				this_thread::sleep_for(100us);
+				this_thread::sleep_for(chrono::microseconds(100));
 			}
 			mJobs[write_index & (cMaxJobs - 1)] = job;
 		}
@@ -345,7 +353,7 @@ JobHandle JobSystemThreadPool::CreateJob(const char *inJobName, ColorArg inColor
 		if (index != AvailableJobs::cInvalidObjectIndex)
 			break;
 		JPH_ASSERT(false, "No jobs available!");
-		this_thread::sleep_for(100us);
+		this_thread::sleep_for(chrono::microseconds(100));
 	}
 	Job *job = &mJobs.Get(index);
 	
@@ -437,7 +445,7 @@ void JobSystemThreadPool::QueueJobInternal(Job *inJob)
 				mSemaphore.Release((uint)mThreads.size()); 
 
 				// Sleep a little (we have to wait for other threads to update their head pointer in order for us to be able to continue)
-				this_thread::sleep_for(100us);
+				this_thread::sleep_for(chrono::microseconds(100));
 				continue;
 			}
 		}
