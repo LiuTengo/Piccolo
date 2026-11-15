@@ -20,6 +20,8 @@ namespace Piccolo
 
         void tick(float delta_time) override;
 
+        void parameter_update(float delta_tick);
+
         const AnimationResult& getResult() const;
         void                   animateBasicClip(float ratio, BasicClip* basic_clip);
         void                   blend(float desired_ratio, BlendState* blend_state);
@@ -42,4 +44,4 @@ namespace Piccolo
         json11::Json::object  m_signal;
         float                 m_ratio {0};
     };
-} // namespace Pilot1
+} // namespace Piccolo

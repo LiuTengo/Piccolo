@@ -2,6 +2,7 @@
 
 #include "runtime/function/animation/animation_system.h"
 #include "runtime/function/framework/object/object.h"
+#include "runtime/function/framework/component/motor/motor_component.h"
 #include <runtime/engine.h>
 
 namespace Piccolo
@@ -77,58 +78,124 @@ namespace Piccolo
     {
         if ((m_tick_in_editor_mode == false) && g_is_editor_mode)
             return;
-        std::string name = m_animation_fsm.getCurrentClipBaseName();
-        for (auto blend_state : m_animation_res.m_clips)
-        {
-            if (blend_state->m_name == name)
+
+        // Deprecated Tick Logic
+        //std::string name = m_animation_fsm.getCurrentClipBaseName();
+        //for (auto blend_state : m_animation_res.m_clips)
+        //{
+        //    if (blend_state->m_name == name)
+        //    {
+        //        float length        = blend_state->getLength();
+        //        float delta_ratio   = delta_time / length;
+        //        float desired_ratio = delta_ratio + m_ratio;
+        //        if (desired_ratio >= 1.f)
+        //        {
+        //            desired_ratio = desired_ratio - floor(desired_ratio);
+        //            updateSignal("clip_finish", true);
+        //        }
+        //        else
+        //        {
+        //            updateSignal("clip_finish", false);
+        //        }
+        //        bool restart = m_animation_fsm.update(m_signal);
+        //        if (!restart)
+        //        {
+        //            m_ratio = desired_ratio;
+        //        }
+        //        else
+        //        {
+        //            m_ratio = 0;
+        //        }
+        //        break;
+        //    }
+        //}
+        //name = m_animation_fsm.getCurrentClipBaseName();
+        //for (auto clip : m_animation_res.m_clips)
+        //{
+        //    if (clip->m_name == name)
+        //    {
+        //        if (clip.getTypeName() == "BlendSpace1D")
+        //        {
+        //            auto blend_state_1d_pre = static_cast<BlendSpace1D*>(clip);
+        //            blend1D(m_ratio, blend_state_1d_pre);
+        //        }
+        //        else if (clip.getTypeName() == "BlendState")
+        //        {
+        //            auto blend_state = static_cast<BlendState*>(clip);
+        //            blend(m_ratio, blend_state);
+        //        }
+        //        else if (clip.getTypeName() == "BasicClip")
+        //        {
+        //            auto basic_clip = static_cast<BasicClip*>(clip);
+        //            animateBasicClip(m_ratio, basic_clip);
+        //        }
+        //        break;
+        //    }
+        //}
+    
+        // 参数更新 update parameters
+		parameter_update(delta_time);
+
+        //region 暂时的方法 更新一下播放进度
+        auto current_clip = m_animation_fsm.getCurrentClipBase();
+        if (!current_clip)
+            return;
+
+        // 3. 更新播放进度
+        float length = current_clip->getLength();
+
+        if (length <= 0.0f)
+            return;
+
+        float desired_ratio = m_ratio + delta_time / length;
+
+        bool clip_finished = desired_ratio >= 1.0f;
+
+        // 暂时沿用原有逻辑：播放进度循环
+        desired_ratio -= std::floor(desired_ratio);
+
+        updateSignal("clip_finish", clip_finished);
+		//endregion 更新播放进度
+
+		// 更新动画状态机 update animation state machine
+		bool state_changed = m_animation_fsm.update_fsm(m_signal);
+
+        // 5. 根据是否切换状态更新播放进度
+        m_ratio = state_changed ? 0.0f : desired_ratio;
+
+        // 拿到当前的Clip 做blend 暂时的方法
+        auto clip = m_animation_fsm.getCurrentClipBase();
+        if (clip) {
+            if (clip.getTypeName() == "BlendSpace1D")
             {
-                float length        = blend_state->getLength();
-                float delta_ratio   = delta_time / length;
-                float desired_ratio = delta_ratio + m_ratio;
-                if (desired_ratio >= 1.f)
-                {
-                    desired_ratio = desired_ratio - floor(desired_ratio);
-                    updateSignal("clip_finish", true);
-                }
-                else
-                {
-                    updateSignal("clip_finish", false);
-                }
-                bool restart = m_animation_fsm.update(m_signal);
-                if (!restart)
-                {
-                    m_ratio = desired_ratio;
-                }
-                else
-                {
-                    m_ratio = 0;
-                }
-                break;
+                auto blend_state_1d_pre = static_cast<BlendSpace1D*>(clip);
+                blend1D(m_ratio, blend_state_1d_pre);
+            }
+            else if (clip.getTypeName() == "BlendState")
+            {
+                auto blend_state = static_cast<BlendState*>(clip);
+                blend(m_ratio, blend_state);
+            }
+            else if (clip.getTypeName() == "BasicClip")
+            {
+                auto basic_clip = static_cast<BasicClip*>(clip);
+                animateBasicClip(m_ratio, basic_clip);
             }
         }
+    
+    }
 
-        name = m_animation_fsm.getCurrentClipBaseName();
-        for (auto clip : m_animation_res.m_clips)
-        {
-            if (clip->m_name == name)
-            {
-                if (clip.getTypeName() == "BlendSpace1D")
-                {
-                    auto blend_state_1d_pre = static_cast<BlendSpace1D*>(clip);
-                    blend1D(m_ratio, blend_state_1d_pre);
-                }
-                else if (clip.getTypeName() == "BlendState")
-                {
-                    auto blend_state = static_cast<BlendState*>(clip);
-                    blend(m_ratio, blend_state);
-                }
-                else if (clip.getTypeName() == "BasicClip")
-                {
-                    auto basic_clip = static_cast<BasicClip*>(clip);
-                    animateBasicClip(m_ratio, basic_clip);
-                }
-                break;
-            }
+    void AnimationComponent::parameter_update(float delta_tick)
+    {
+        if (!m_parent_object.lock())
+            return;
+
+        //暂时的实现方式
+        MotorComponent* motor_component =
+            m_parent_object.lock()->tryGetComponent<MotorComponent>("MotorComponent");
+        if (motor_component) {
+			updateSignal("speed", motor_component->speed);
+			updateSignal("jumping", motor_component->jumping);
         }
     }
 

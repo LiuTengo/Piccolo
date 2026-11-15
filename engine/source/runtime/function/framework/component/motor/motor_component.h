@@ -42,6 +42,12 @@ namespace Piccolo
         META(Enable)
         void getOffStuckDead();
 
+        //#beginregion temp motor parameter value
+
+        float speed = 0.f;
+		bool jumping = false;
+
+		//#endregion temp motor parameter value
     private:
         void calculatedDesiredHorizontalMoveSpeed(unsigned int command, float delta_time);
         void calculatedDesiredVerticalMoveSpeed(unsigned int command, float delta_time);
