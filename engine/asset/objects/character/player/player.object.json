@@ -27,6 +27,7 @@
       "$context": {
         "animation_res": {
           "skeleton_file_path": "asset/objects/character/player/components/animation/data/skeleton_data_root.skeleton.json",
+          "fsm_file_path": "asset/objects/character/player/components/animation/player.animation_state_machine.json",
           "clips": [
             {
               "$context": {

@@ -1,0 +1,199 @@
+{
+  "version": 1,
+  "initial_state_id": 0,
+  "states": [
+    {
+      "state_id": 0,
+      "state_name": "idle",
+      "clip_name": "idle_walk_run",
+      "loop": true,
+      "transitions": [
+        0,
+        1
+      ]
+    },
+    {
+      "state_id": 1,
+      "state_name": "walk_start",
+      "clip_name": "walk_start",
+      "loop": false,
+      "transitions": [
+        2
+      ]
+    },
+    {
+      "state_id": 2,
+      "state_name": "walk_run",
+      "clip_name": "idle_walk_run",
+      "loop": true,
+      "transitions": [
+        3,
+        4
+      ]
+    },
+    {
+      "state_id": 3,
+      "state_name": "walk_stop",
+      "clip_name": "walk_stop",
+      "loop": false,
+      "transitions": [
+        5
+      ]
+    },
+    {
+      "state_id": 4,
+      "state_name": "jump_start",
+      "clip_name": "jump_start",
+      "loop": false,
+      "transitions": [
+        6
+      ]
+    },
+    {
+      "state_id": 5,
+      "state_name": "jump_loop",
+      "clip_name": "jump_loop",
+      "loop": true,
+      "transitions": [
+        7
+      ]
+    },
+    {
+      "state_id": 6,
+      "state_name": "jump_stop",
+      "clip_name": "jump_stop",
+      "loop": false,
+      "transitions": [
+        8,
+        9
+      ]
+    }
+  ],
+  "transitions": [
+    {
+      "source": 0,
+      "target": 4,
+      "conditions": [
+        {
+          "parameter_name": "jumping",
+          "op": "Equal",
+          "value": true
+        }
+      ]
+    },
+    {
+      "source": 0,
+      "target": 1,
+      "conditions": [
+        {
+          "parameter_name": "speed",
+          "op": "Greater",
+          "value": 0.01
+        }
+      ]
+    },
+    {
+      "source": 1,
+      "target": 2,
+      "conditions": [
+        {
+          "parameter_name": "clip_finish",
+          "op": "Equal",
+          "value": true
+        }
+      ]
+    },
+    {
+      "source": 2,
+      "target": 4,
+      "conditions": [
+        {
+          "parameter_name": "jumping",
+          "op": "Equal",
+          "value": true
+        }
+      ]
+    },
+    {
+      "source": 2,
+      "target": 3,
+      "conditions": [
+        {
+          "parameter_name": "clip_finish",
+          "op": "Equal",
+          "value": true
+        },
+        {
+          "parameter_name": "speed",
+          "op": "LessEqual",
+          "value": 0.01
+        }
+      ]
+    },
+    {
+      "source": 3,
+      "target": 0,
+      "conditions": [
+        {
+          "parameter_name": "clip_finish",
+          "op": "Equal",
+          "value": true
+        }
+      ]
+    },
+    {
+      "source": 4,
+      "target": 5,
+      "conditions": [
+        {
+          "parameter_name": "clip_finish",
+          "op": "Equal",
+          "value": true
+        }
+      ]
+    },
+    {
+      "source": 5,
+      "target": 6,
+      "conditions": [
+        {
+          "parameter_name": "jumping",
+          "op": "Equal",
+          "value": false
+        }
+      ]
+    },
+    {
+      "source": 6,
+      "target": 2,
+      "conditions": [
+        {
+          "parameter_name": "clip_finish",
+          "op": "Equal",
+          "value": true
+        },
+        {
+          "parameter_name": "speed",
+          "op": "Greater",
+          "value": 0.01
+        }
+      ]
+    },
+    {
+      "source": 6,
+      "target": 0,
+      "conditions": [
+        {
+          "parameter_name": "clip_finish",
+          "op": "Equal",
+          "value": true
+        },
+        {
+          "parameter_name": "speed",
+          "op": "LessEqual",
+          "value": 0.01
+        }
+      ]
+    }
+  ]
+}

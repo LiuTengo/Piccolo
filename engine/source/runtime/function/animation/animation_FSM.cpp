@@ -1,7 +1,68 @@
+#include "runtime/resource/res_type/components/animation.h"
 #include "runtime/function/animation/animation_FSM.h"
+
+#include "runtime/core/base/macro.h"
+
 #include <iostream>
 namespace Piccolo
 {
+    void AnimationFSM::DeserializeFSM(const json11::Json& fsm_json, AnimationFSM& fsm)
+    {
+       fsm.m_current_state_id = fsm_json["initial_state_id"].int_value();
+
+	   const auto& nodes = fsm_json["states"].array_items();
+	   const auto& transitions = fsm_json["transitions"].array_items();
+       
+       if (nodes.size() < fsm.m_current_state_id) {
+		   LOG_ERROR("Initial state ID {} is out of range of nodes (size {}).", fsm.m_current_state_id, nodes.size());
+       }
+
+	   fsm.m_nodes.resize(nodes.size());
+       fsm.m_transitions.resize(transitions.size());
+
+       for (size_t i = 0; i < nodes.size(); ++i) {
+           auto& node = fsm.m_nodes[i];
+           node.state_id = nodes[i]["state_id"].int_value();
+           node.state_name = nodes[i]["state_name"].string_value();
+           node.clip_name = nodes[i]["clip_name"].string_value();
+           node.loop = nodes[i]["loop"].bool_value();
+           auto& node_trans = nodes[i]["transitions"].array_items(); 
+		   node.transitions.resize(node_trans.size());
+           for (int k = 0;k<node_trans.size();++k) {
+               node.transitions[k] = node_trans[k].int_value();
+           }
+       }
+
+       for (size_t i = 0; i < transitions.size(); ++i) {
+		   auto& transition = fsm.m_transitions[i];
+           transition.source = transitions[i]["source"].int_value();
+           transition.target = transitions[i]["target"].int_value();
+		   auto& trans_conditions = transitions[i]["conditions"].array_items();
+           transition.conditions.resize(trans_conditions.size());
+           for (int k = 0;k<trans_conditions.size();++k) {
+               auto& condition_json = trans_conditions[k];
+               FSMCondition condition;
+               condition.parameter_name = condition_json["parameter_name"].string_value();
+               std::string op_str = condition_json["op"].string_value();
+               if (op_str == "Equal") {
+                   condition.op = CompareOperator::Equal;
+               } else if (op_str == "NotEqual") {
+                   condition.op = CompareOperator::NotEqual;
+               } else if (op_str == "Greater") {
+                   condition.op = CompareOperator::Greater;
+               } else if (op_str == "Less") {
+                   condition.op = CompareOperator::Less;
+               } else if (op_str == "GreaterEqual") {
+                   condition.op = CompareOperator::GreaterEqual;
+               } else if (op_str == "LessEqual") {
+                   condition.op = CompareOperator::LessEqual;
+               }
+               condition.value = condition_json["value"];
+               transition.conditions[k] = condition;
+		   }
+       }
+    }
+
     AnimationFSM::AnimationFSM() {}
     float tryGetFloat(const json11::Json::object& json, const std::string& key, float default_value)
     {
@@ -106,23 +167,46 @@ namespace Piccolo
 
     bool AnimationFSM::update_fsm(const json11::Json::object& signals)
     {
+        const FSMNode& cur_node = getCurrentNode();
+
+        for (const auto& transition_id : cur_node.transitions) {
+            if (transition_id >= m_transitions.size()) {
+                throw std::out_of_range("Transition ID is out of range of transitions.");
+            }
+
+			const FSMTransition& transition = m_transitions[transition_id];
+            if (transition.checkCondition(signals)) {
+
+				cur_node.ExitNode(); // Exit the current node
+                m_current_state_id = transition.target;
+                getCurrentNode().EnterNode(); // Enter the new node
+
+                return true; // Transition occurred
+			}
+            else {
+				cur_node.UpdateNode(); // Update the current node if no transition occurs
+            }
+        }
+
         return false;
     }
 
-    Reflection::ReflectionPtr<ClipBase> AnimationFSM::getCurrentClipBase() const
+    Reflection::ReflectionPtr<ClipBase> AnimationFSM::getCurrentClipBase(const AnimationComponentRes& animation_res) const
     {
+        const auto& cur_node = getCurrentNode();
+        for (auto clip : animation_res.m_clips) {
+            if (cur_node.clip_name == clip->m_name)
+            {
+                return clip;
+            }
+        }
         return Reflection::ReflectionPtr<ClipBase>();
-    }
-
-    bool AnimationFSM::checkCondition(const json11::Json::object& signals, 
-        const FSMCondition& condition) const
-    {
-
-        return false;
     }
 
     std::string AnimationFSM::getCurrentClipBaseName() const
     {
+        
+        //cur_node.clip_base;
         return "empty";
         //switch (m_state)
         //{

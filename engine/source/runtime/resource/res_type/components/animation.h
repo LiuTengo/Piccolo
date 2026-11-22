@@ -36,10 +36,14 @@ namespace Piccolo
     public:
 
         META(Enable) 
-        std::string m_skeleton_file_path;
+        std::string m_skeleton_file_path;// animation to skeleton map
+        
         META(Enable) 
         std::vector<Reflection::ReflectionPtr<ClipBase>> m_clips;
-        // animation to skeleton map
+        
+        META(Enable)
+        std::string m_fsm_file_path;
+        
     };
 
 } // namespace Piccolo

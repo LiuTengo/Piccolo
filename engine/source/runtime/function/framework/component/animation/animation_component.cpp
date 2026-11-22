@@ -5,6 +5,13 @@
 #include "runtime/function/framework/component/motor/motor_component.h"
 #include <runtime/engine.h>
 
+#include "runtime/core/base/macro.h"
+#include "runtime/function/global/global_context.h"
+#include "runtime/resource/asset_manager/asset_manager.h"
+
+#include <fstream>
+#include <sstream>
+
 namespace Piccolo
 {
     void AnimationComponent::postLoadResource(std::weak_ptr<GObject> parent_object)
@@ -12,8 +19,57 @@ namespace Piccolo
         m_parent_object = parent_object;
 
         auto skeleton_res = AnimationManager::tryLoadSkeleton(m_animation_res.m_skeleton_file_path);
-
         m_skeleton.buildSkeleton(*skeleton_res);
+
+        // 使用 AssetManager 将资源相对路径解析为引擎配置的完整路径。
+        if (loadAnimationFSM())
+        {
+            AnimationFSM::DeserializeFSM(m_animation_fsm_json, m_animation_fsm);
+        }
+    }
+
+    bool AnimationComponent::loadAnimationFSM()
+    {
+        m_animation_fsm_json = json11::Json();
+
+        if (m_animation_res.m_fsm_file_path.empty())
+        {
+            LOG_ERROR("Animation FSM file path is empty.");
+            return false;
+        }
+
+        const std::filesystem::path fsm_file_path =
+            g_runtime_global_context.m_asset_manager->getFullPath(m_animation_res.m_fsm_file_path);
+
+        std::ifstream fsm_file(fsm_file_path);
+        if (!fsm_file.is_open())
+        {
+            LOG_ERROR("Open animation FSM file failed: {}", fsm_file_path.generic_string());
+            return false;
+        }
+
+        std::stringstream buffer;
+        buffer << fsm_file.rdbuf();
+
+        std::string   parse_error;
+        json11::Json parsed_json = json11::Json::parse(buffer.str(), parse_error);
+        if (!parse_error.empty())
+        {
+            LOG_ERROR("Parse animation FSM file failed: {} ({})", fsm_file_path.generic_string(), parse_error);
+            return false;
+        }
+
+        if (!parsed_json.is_object())
+        {
+            LOG_ERROR("Animation FSM root must be a JSON object: {}", fsm_file_path.generic_string());
+            return false;
+        }
+
+        m_animation_fsm_json = parsed_json;
+        LOG_INFO("Animation FSM loaded: {}, states={}",
+                 fsm_file_path.generic_string(),
+                 m_animation_fsm_json["states"].array_items().size());
+        return true;
     }
 
     void AnimationComponent::blend1D(float desired_ratio, BlendSpace1D* blend_state)

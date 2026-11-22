@@ -35,12 +35,15 @@ namespace Piccolo
         const Skeleton& getSkeleton() const { return m_skeleton; }
 
     protected:
+        bool loadAnimationFSM();
+
         META(Enable)
         AnimationComponentRes m_animation_res;
 
         Skeleton m_skeleton;
         AnimationResult       m_animation_result;
         AnimationFSM          m_animation_fsm;
+        json11::Json          m_animation_fsm_json;
         json11::Json::object  m_signal;
         float                 m_ratio {0};
     };
