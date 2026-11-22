@@ -73,19 +73,11 @@ namespace Piccolo
 
 		// Index of the associated clip in the AnimationFSM's clip list
         uint32_t clip_index = -1;
+    };
 
-    public:
-        virtual void EnterNode() const {
-            // Logic to execute when entering this node
-		}
-
-        virtual void ExitNode() const {
-			// Logic to execute when exiting this node
-        }
-
-        virtual void UpdateNode() const {
-			// Logic to execute when updating this node
-        }
+    struct FSMUpdateRes {
+        uint16_t src_id;
+        uint16_t target_id;
     };
 
     class AnimationFSM
@@ -95,24 +87,25 @@ namespace Piccolo
         std::vector<FSMTransition> m_transitions;
 
 	protected:
-		uint16_t m_current_state_id = 0;
+		uint16_t m_current_state_idx = 0;
 
     public:
 		//从json文件中反序列化FSM
 		static void DeserializeFSM(const json11::Json& fsm_json, AnimationFSM& fsm);
 
         AnimationFSM();
+        //deprecated function
         bool        update(const json11::Json::object& signals);
         std::string getCurrentClipBaseName() const;
 
-        bool update_fsm(const json11::Json::object& signals);
+        const FSMUpdateRes& update_fsm(const json11::Json::object& signals);
         Reflection::ReflectionPtr<ClipBase> getCurrentClipBase(const AnimationComponentRes& animation_res) const;
 
         const FSMNode& getCurrentNode() const {
-            if (m_current_state_id >= m_nodes.size()) {
+            if (m_current_state_idx >= m_nodes.size()) {
                 throw std::out_of_range("Current state ID is out of range of nodes.");
 			}
-            return m_nodes[m_current_state_id];
+            return m_nodes[m_current_state_idx];
         }
     };
 } // namespace Piccolo

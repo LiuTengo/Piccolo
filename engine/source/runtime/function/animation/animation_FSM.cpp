@@ -8,13 +8,13 @@ namespace Piccolo
 {
     void AnimationFSM::DeserializeFSM(const json11::Json& fsm_json, AnimationFSM& fsm)
     {
-       fsm.m_current_state_id = fsm_json["initial_state_id"].int_value();
+       fsm.m_current_state_idx = fsm_json["initial_state_id"].int_value();
 
 	   const auto& nodes = fsm_json["states"].array_items();
 	   const auto& transitions = fsm_json["transitions"].array_items();
        
-       if (nodes.size() < fsm.m_current_state_id) {
-		   LOG_ERROR("Initial state ID {} is out of range of nodes (size {}).", fsm.m_current_state_id, nodes.size());
+       if (nodes.size() < fsm.m_current_state_idx) {
+		   LOG_ERROR("Initial state ID {} is out of range of nodes (size {}).", fsm.m_current_state_idx, nodes.size());
        }
 
 	   fsm.m_nodes.resize(nodes.size());
@@ -165,10 +165,12 @@ namespace Piccolo
         return false;
     }
 
-    bool AnimationFSM::update_fsm(const json11::Json::object& signals)
+    const FSMUpdateRes& AnimationFSM::update_fsm(const json11::Json::object& signals)
     {
         const FSMNode& cur_node = getCurrentNode();
-
+        FSMUpdateRes res = FSMUpdateRes();
+        res.src_id = cur_node.state_id;
+        res.target_id = cur_node.state_id;
         for (const auto& transition_id : cur_node.transitions) {
             if (transition_id >= m_transitions.size()) {
                 throw std::out_of_range("Transition ID is out of range of transitions.");
@@ -177,18 +179,18 @@ namespace Piccolo
 			const FSMTransition& transition = m_transitions[transition_id];
             if (transition.checkCondition(signals)) {
 
-				cur_node.ExitNode(); // Exit the current node
-                m_current_state_id = transition.target;
-                getCurrentNode().EnterNode(); // Enter the new node
-
-                return true; // Transition occurred
+				//cur_node.ExitNode(); // Exit the current node
+                m_current_state_idx = transition.target;
+                //getCurrentNode().EnterNode(); // Enter the new node
+                res.target_id = m_current_state_idx;
+                return res; // Transition occurred
 			}
             else {
-				cur_node.UpdateNode(); // Update the current node if no transition occurs
+				//cur_node.UpdateNode(); // Update the current node if no transition occurs
             }
         }
 
-        return false;
+        return res;
     }
 
     Reflection::ReflectionPtr<ClipBase> AnimationFSM::getCurrentClipBase(const AnimationComponentRes& animation_res) const

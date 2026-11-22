@@ -193,7 +193,7 @@ namespace Piccolo
 		parameter_update(delta_time);
 
         //region 暂时的方法 更新一下播放进度
-        auto current_clip = m_animation_fsm.getCurrentClipBase();
+        auto current_clip = m_animation_fsm.getCurrentClipBase(m_animation_res);
         if (!current_clip)
             return;
 
@@ -214,13 +214,13 @@ namespace Piccolo
 		//endregion 更新播放进度
 
 		// 更新动画状态机 update animation state machine
-		bool state_changed = m_animation_fsm.update_fsm(m_signal);
+		const FSMUpdateRes& fsm_res = m_animation_fsm.update_fsm(m_signal);
 
         // 5. 根据是否切换状态更新播放进度
-        m_ratio = state_changed ? 0.0f : desired_ratio;
+        m_ratio = (fsm_res.target_id != fsm_res.src_id) ? 0.0f : desired_ratio;
 
         // 拿到当前的Clip 做blend 暂时的方法
-        auto clip = m_animation_fsm.getCurrentClipBase();
+        auto clip = m_animation_fsm.getCurrentClipBase(m_animation_res);
         if (clip) {
             if (clip.getTypeName() == "BlendSpace1D")
             {
