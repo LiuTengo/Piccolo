@@ -81,18 +81,21 @@ namespace Piccolo
         calculateDesiredDisplacement(delta_time);
         calculateTargetPosition(transform_component->getPosition());
 
-        transform_component->setPosition(m_target_position);
+        const Vector3 current_position = transform_component->getPosition();
+        const Vector3 next_position = m_target_position;
 
-		speed = m_target_position.distance(transform_component->getPosition()) / delta_time;
-		jumping = m_jump_state != JumpState::idle;
+        speed = next_position.distance(current_position) / delta_time;
+        transform_component->setPosition(next_position);
+        
+        jumping = m_jump_state != JumpState::idle;
 
-        //AnimationComponent* animation_component =
-        //    m_parent_object.lock()->tryGetComponent<AnimationComponent>("AnimationComponent");
-        //if (animation_component != nullptr)
-        //{
-        //    animation_component->updateSignal("speed", m_target_position.distance(transform_component->getPosition()) / delta_time);
-        //    animation_component->updateSignal("jumping", m_jump_state != JumpState::idle);
-        //}
+        AnimationComponent* animation_component =
+            m_parent_object.lock()->tryGetComponent<AnimationComponent>("AnimationComponent");
+        if (animation_component != nullptr)
+        {
+            animation_component->updateSignal("speed", speed);
+            animation_component->updateSignal("jumping", jumping);
+        }
     }
 
     void MotorComponent::calculatedDesiredHorizontalMoveSpeed(unsigned int command, float delta_time)

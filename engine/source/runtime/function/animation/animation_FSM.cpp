@@ -13,7 +13,7 @@ namespace Piccolo
 	   const auto& nodes = fsm_json["states"].array_items();
 	   const auto& transitions = fsm_json["transitions"].array_items();
        
-       if (nodes.size() < fsm.m_current_state_idx) {
+       if (nodes.size() <= fsm.m_current_state_idx) {
 		   LOG_ERROR("Initial state ID {} is out of range of nodes (size {}).", fsm.m_current_state_idx, nodes.size());
        }
 
@@ -165,12 +165,13 @@ namespace Piccolo
         return false;
     }
 
-    const FSMUpdateRes& AnimationFSM::update_fsm(const json11::Json::object& signals)
+    bool AnimationFSM::update_fsm(const json11::Json::object& signals, FSMUpdateRes& out_res)
     {
         const FSMNode& cur_node = getCurrentNode();
-        FSMUpdateRes res = FSMUpdateRes();
-        res.src_id = cur_node.state_id;
-        res.target_id = cur_node.state_id;
+        
+        out_res.src_id = cur_node.state_id;
+        out_res.target_id = cur_node.state_id;
+
         for (const auto& transition_id : cur_node.transitions) {
             if (transition_id >= m_transitions.size()) {
                 throw std::out_of_range("Transition ID is out of range of transitions.");
@@ -182,15 +183,15 @@ namespace Piccolo
 				//cur_node.ExitNode(); // Exit the current node
                 m_current_state_idx = transition.target;
                 //getCurrentNode().EnterNode(); // Enter the new node
-                res.target_id = m_current_state_idx;
-                return res; // Transition occurred
+                out_res.target_id = m_current_state_idx;
+                return true; // Transition occurred
 			}
             else {
 				//cur_node.UpdateNode(); // Update the current node if no transition occurs
             }
         }
 
-        return res;
+        return false;
     }
 
     Reflection::ReflectionPtr<ClipBase> AnimationFSM::getCurrentClipBase(const AnimationComponentRes& animation_res) const

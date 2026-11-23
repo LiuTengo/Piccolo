@@ -98,7 +98,7 @@ namespace Piccolo
         bool        update(const json11::Json::object& signals);
         std::string getCurrentClipBaseName() const;
 
-        const FSMUpdateRes& update_fsm(const json11::Json::object& signals);
+        bool update_fsm(const json11::Json::object& signals, FSMUpdateRes& res);
         Reflection::ReflectionPtr<ClipBase> getCurrentClipBase(const AnimationComponentRes& animation_res) const;
 
         const FSMNode& getCurrentNode() const {

@@ -193,31 +193,40 @@ namespace Piccolo
 		parameter_update(delta_time);
 
         //region 暂时的方法 更新一下播放进度
-        auto current_clip = m_animation_fsm.getCurrentClipBase(m_animation_res);
-        if (!current_clip)
+        auto cur_clip = m_animation_fsm.getCurrentClipBase(m_animation_res);
+		auto cur_node = m_animation_fsm.getCurrentNode();
+        if (!cur_clip)
             return;
 
         // 3. 更新播放进度
-        float length = current_clip->getLength();
+        float length = cur_clip->getLength();
 
         if (length <= 0.0f)
             return;
 
         float desired_ratio = m_ratio + delta_time / length;
 
-        bool clip_finished = desired_ratio >= 1.0f;
-
-        // 暂时沿用原有逻辑：播放进度循环
-        desired_ratio -= std::floor(desired_ratio);
+        bool clip_finished = false;
+        if (cur_node.loop)
+        {
+            m_ratio = std::fmod(desired_ratio, 1.0f);
+            clip_finished = false; // 或单独的 cycle 事件
+        }
+        else
+        {
+            clip_finished = desired_ratio >= 1.0f;
+            m_ratio = std::min(desired_ratio, 1.0f);
+        }
 
         updateSignal("clip_finish", clip_finished);
 		//endregion 更新播放进度
 
 		// 更新动画状态机 update animation state machine
-		const FSMUpdateRes& fsm_res = m_animation_fsm.update_fsm(m_signal);
+        FSMUpdateRes fsm_res = FSMUpdateRes();
+        bool state_change = m_animation_fsm.update_fsm(m_signal, fsm_res);
 
         // 5. 根据是否切换状态更新播放进度
-        m_ratio = (fsm_res.target_id != fsm_res.src_id) ? 0.0f : desired_ratio;
+        m_ratio = (state_change) ? 0.0f : m_ratio;
 
         // 拿到当前的Clip 做blend 暂时的方法
         auto clip = m_animation_fsm.getCurrentClipBase(m_animation_res);
@@ -243,16 +252,6 @@ namespace Piccolo
 
     void AnimationComponent::parameter_update(float delta_tick)
     {
-        if (!m_parent_object.lock())
-            return;
-
-        //暂时的实现方式
-        MotorComponent* motor_component =
-            m_parent_object.lock()->tryGetComponent<MotorComponent>("MotorComponent");
-        if (motor_component) {
-			updateSignal("speed", motor_component->speed);
-			updateSignal("jumping", motor_component->jumping);
-        }
     }
 
     const AnimationResult& AnimationComponent::getResult() const { return m_animation_result; }
