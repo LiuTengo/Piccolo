@@ -7,6 +7,8 @@
 #include <vector>
 namespace Piccolo
 {
+    class AnimationComponentRes;
+
     enum class CompareOperator
     {
         Equal,
@@ -19,13 +21,14 @@ namespace Piccolo
 
     struct FSMCondition {
         std::string parameter_name;
-        CompareOperator op;
+        CompareOperator op {CompareOperator::Equal};
         json11::Json value;
     };
 
     struct FSMTransition{
         uint16_t source;
         uint16_t target;
+		float transition_duration{ 0.15f };
 
 		std::vector<FSMCondition> conditions;
 
@@ -72,12 +75,13 @@ namespace Piccolo
         std::vector<uint16_t> transitions;
 
 		// Index of the associated clip in the AnimationFSM's clip list
-        uint32_t clip_index = -1;
+        int32_t clip_index = -1;
     };
 
     struct FSMUpdateRes {
-        uint16_t src_id;
-        uint16_t target_id;
+        uint16_t src_id {0};
+        uint16_t target_id {0};
+		uint16_t transition_id{ 0 };
     };
 
     class AnimationFSM
@@ -91,7 +95,7 @@ namespace Piccolo
 
     public:
 		//从json文件中反序列化FSM
-		static void DeserializeFSM(const json11::Json& fsm_json, AnimationFSM& fsm);
+		static bool DeserializeFSM(const json11::Json& fsm_json, AnimationFSM& fsm);
 
         AnimationFSM();
         //deprecated function
@@ -100,6 +104,7 @@ namespace Piccolo
 
         bool update_fsm(const json11::Json::object& signals, FSMUpdateRes& res);
         Reflection::ReflectionPtr<ClipBase> getCurrentClipBase(const AnimationComponentRes& animation_res) const;
+        bool hasValidState() const { return !m_nodes.empty() && m_current_state_idx < m_nodes.size(); }
 
         const FSMNode& getCurrentNode() const {
             if (m_current_state_idx >= m_nodes.size()) {

@@ -1,12 +1,28 @@
 {
   "version": 1,
   "initial_state_id": 0,
+  "parameters": [
+    {
+      "name": "speed",
+      "type": "Float",
+      "default_value": 0.0
+    },
+    {
+      "name": "jumping",
+      "type": "Bool",
+      "default_value": false
+    }
+  ],
   "states": [
     {
       "state_id": 0,
       "state_name": "idle",
       "clip_name": "idle_walk_run",
       "loop": true,
+      "editor_position": {
+        "x": 80,
+        "y": 80
+      },
       "transitions": [
         0,
         1
@@ -17,6 +33,10 @@
       "state_name": "walk_start",
       "clip_name": "walk_start",
       "loop": false,
+      "editor_position": {
+        "x": 330,
+        "y": 80
+      },
       "transitions": [
         2
       ]
@@ -26,6 +46,10 @@
       "state_name": "walk_run",
       "clip_name": "idle_walk_run",
       "loop": true,
+      "editor_position": {
+        "x": 580,
+        "y": 80
+      },
       "transitions": [
         3,
         4
@@ -36,6 +60,10 @@
       "state_name": "walk_stop",
       "clip_name": "walk_stop",
       "loop": false,
+      "editor_position": {
+        "x": 830,
+        "y": 80
+      },
       "transitions": [
         5
       ]
@@ -45,6 +73,10 @@
       "state_name": "jump_start",
       "clip_name": "jump_start",
       "loop": false,
+      "editor_position": {
+        "x": 80,
+        "y": 260
+      },
       "transitions": [
         6
       ]
@@ -54,6 +86,10 @@
       "state_name": "jump_loop",
       "clip_name": "jump_loop",
       "loop": true,
+      "editor_position": {
+        "x": 330,
+        "y": 260
+      },
       "transitions": [
         7
       ]
@@ -63,6 +99,10 @@
       "state_name": "jump_stop",
       "clip_name": "jump_stop",
       "loop": false,
+      "editor_position": {
+        "x": 580,
+        "y": 260
+      },
       "transitions": [
         8,
         9

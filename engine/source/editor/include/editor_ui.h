@@ -1,6 +1,7 @@
 #pragma once
 
 #include "editor/include/axis.h"
+#include "editor/include/editor_animation_fsm.h"
 
 #include "runtime/core/math/vector2.h"
 
@@ -49,6 +50,7 @@ namespace Piccolo
         std::unordered_map<std::string, std::function<void(std::string, void*)>> m_editor_ui_creator;
         std::unordered_map<std::string, unsigned int>                            m_new_object_index_map;
         EditorFileService                                                        m_editor_file_service;
+        AnimationFSMEditor                                                       m_animation_fsm_editor;
         std::chrono::time_point<std::chrono::steady_clock>                       m_last_file_tree_update;
 
         bool m_editor_menu_window_open       = true;

@@ -24,7 +24,10 @@ namespace Piccolo
         // 使用 AssetManager 将资源相对路径解析为引擎配置的完整路径。
         if (loadAnimationFSM())
         {
-            AnimationFSM::DeserializeFSM(m_animation_fsm_json, m_animation_fsm);
+            if (!AnimationFSM::DeserializeFSM(m_animation_fsm_json, m_animation_fsm))
+            {
+                LOG_ERROR("Animation FSM could not be initialized.");
+            }
         }
     }
 
@@ -130,9 +133,24 @@ namespace Piccolo
         }
         blend(desired_ratio, blend_state);
     }
+
+
+    AnimationPose evaluateStatePose(Piccolo::Reflection::ReflectionPtr<ClipBase> clip, float ratio, AnimationPose& out_pose)
+    {
+        //计算当前动画资产的pose
+        AnimationPose res_pose;
+
+        return res_pose;
+    }
+    void crossfade(const AnimationPose& src_pose, const AnimationPose& target_pose, float alpha, AnimationPose& out_pose)
+    {
+
+    }
     void AnimationComponent::tick(float delta_time)
     {
         if ((m_tick_in_editor_mode == false) && g_is_editor_mode)
+            return;
+        if (!m_animation_fsm.hasValidState())
             return;
 
         // Deprecated Tick Logic
@@ -209,11 +227,13 @@ namespace Piccolo
         bool clip_finished = false;
         if (cur_node.loop)
         {
+			// 循环时 ratio 超过1.0f时，取余数
             m_ratio = std::fmod(desired_ratio, 1.0f);
-            clip_finished = false; // 或单独的 cycle 事件
+            clip_finished = false;
         }
         else
         {
+            // 非循环时 ratio 超过1.0f时，动画结束
             clip_finished = desired_ratio >= 1.0f;
             m_ratio = std::min(desired_ratio, 1.0f);
         }
@@ -228,8 +248,24 @@ namespace Piccolo
         // 5. 根据是否切换状态更新播放进度
         m_ratio = (state_change) ? 0.0f : m_ratio;
 
-        // 拿到当前的Clip 做blend 暂时的方法
+        // 拿到当前的Clip 根据ratio获取clip的pose并和当前pose做blend
         auto clip = m_animation_fsm.getCurrentClipBase(m_animation_res);
+
+        AnimationPose src_pose;
+        m_skeleton.extractPose(src_pose);
+        AnimationPose target_pose;
+        evaluateStatePose(clip, m_ratio, target_pose);
+
+        //FIXME: sss
+		float duration = m_animation_fsm.m_transitions[fsm_res.transition_id].transition_duration;
+		float elapsed_time = delta_time;
+		float alpha = std::clamp(elapsed_time/duration, 0.0f, 1.0f);
+
+        AnimationPose final_pose;
+        crossfade(src_pose, target_pose, alpha, final_pose);
+
+        m_skeleton.applyPose(final_pose);
+
         if (clip) {
             if (clip.getTypeName() == "BlendSpace1D")
             {
@@ -269,7 +305,7 @@ namespace Piccolo
         
 
         m_skeleton.applyPose(pose);
-        m_animation_result = m_skeleton.outputAnimationResult();
+        //m_animation_result = m_skeleton.outputAnimationResult();
     }
     void AnimationComponent::blend(float desired_ratio, BlendState* blend_state)
     {
@@ -301,6 +337,6 @@ namespace Piccolo
         }
 
         m_skeleton.applyPose(poses[0]);
-        m_animation_result = m_skeleton.outputAnimationResult();
+        //m_animation_result = m_skeleton.outputAnimationResult();
     }
 } // namespace Pilot

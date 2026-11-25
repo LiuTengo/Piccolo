@@ -26,6 +26,10 @@ namespace Piccolo
         void                   animateBasicClip(float ratio, BasicClip* basic_clip);
         void                   blend(float desired_ratio, BlendState* blend_state);
         void                   blend1D(float desired_ratio, BlendSpace1D* blend_state);
+		
+        AnimationPose evaluateStatePose(Piccolo::Reflection::ReflectionPtr<ClipBase> clip, float ratio, AnimationPose& out_pose);
+        void crossfade(const AnimationPose& src_pose, const AnimationPose& target_pose, float alpha, AnimationPose& out_pose);
+
         template<typename T>
         void updateSignal(const std::string& key, const T& value)
         {

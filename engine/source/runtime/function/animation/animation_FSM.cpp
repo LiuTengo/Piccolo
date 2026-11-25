@@ -1,21 +1,33 @@
 #include "runtime/resource/res_type/components/animation.h"
 #include "runtime/function/animation/animation_FSM.h"
+#include "runtime/function/animation/animation_fsm_validation.h"
 
 #include "runtime/core/base/macro.h"
 
 #include <iostream>
 namespace Piccolo
 {
-    void AnimationFSM::DeserializeFSM(const json11::Json& fsm_json, AnimationFSM& fsm)
+    bool AnimationFSM::DeserializeFSM(const json11::Json& fsm_json, AnimationFSM& fsm)
     {
-       fsm.m_current_state_idx = fsm_json["initial_state_id"].int_value();
+       const AnimationFSMValidationResult validation = validateAnimationFSMJson(fsm_json);
+	   if (!validation.isValid())
+	   {
+		   for (const std::string& error : validation.m_errors)
+		   {
+			   LOG_ERROR("Animation FSM validation: {}", error);
+		   }
+		   fsm.m_nodes.clear();
+		   fsm.m_transitions.clear();
+		   fsm.m_current_state_idx = 0;
+		   return false;
+	   }
+
+	   fsm.m_nodes.clear();
+	   fsm.m_transitions.clear();
+	   fsm.m_current_state_idx = fsm_json["initial_state_id"].int_value();
 
 	   const auto& nodes = fsm_json["states"].array_items();
 	   const auto& transitions = fsm_json["transitions"].array_items();
-       
-       if (nodes.size() <= fsm.m_current_state_idx) {
-		   LOG_ERROR("Initial state ID {} is out of range of nodes (size {}).", fsm.m_current_state_idx, nodes.size());
-       }
 
 	   fsm.m_nodes.resize(nodes.size());
        fsm.m_transitions.resize(transitions.size());
@@ -28,7 +40,7 @@ namespace Piccolo
            node.loop = nodes[i]["loop"].bool_value();
            auto& node_trans = nodes[i]["transitions"].array_items(); 
 		   node.transitions.resize(node_trans.size());
-           for (int k = 0;k<node_trans.size();++k) {
+           for (size_t k = 0; k < node_trans.size(); ++k) {
                node.transitions[k] = node_trans[k].int_value();
            }
        }
@@ -37,9 +49,10 @@ namespace Piccolo
 		   auto& transition = fsm.m_transitions[i];
            transition.source = transitions[i]["source"].int_value();
            transition.target = transitions[i]["target"].int_value();
+		   transition.transition_duration = transitions[i]["transition_duration"].number_value();
 		   auto& trans_conditions = transitions[i]["conditions"].array_items();
            transition.conditions.resize(trans_conditions.size());
-           for (int k = 0;k<trans_conditions.size();++k) {
+           for (size_t k = 0; k < trans_conditions.size(); ++k) {
                auto& condition_json = trans_conditions[k];
                FSMCondition condition;
                condition.parameter_name = condition_json["parameter_name"].string_value();
@@ -61,6 +74,7 @@ namespace Piccolo
                transition.conditions[k] = condition;
 		   }
        }
+	   return true;
     }
 
     AnimationFSM::AnimationFSM() {}
@@ -182,8 +196,12 @@ namespace Piccolo
 
 				//cur_node.ExitNode(); // Exit the current node
                 m_current_state_idx = transition.target;
+                
                 //getCurrentNode().EnterNode(); // Enter the new node
+
                 out_res.target_id = m_current_state_idx;
+				out_res.transition_id = transition_id;
+                
                 return true; // Transition occurred
 			}
             else {
@@ -208,9 +226,11 @@ namespace Piccolo
 
     std::string AnimationFSM::getCurrentClipBaseName() const
     {
-        
-        //cur_node.clip_base;
-        return "empty";
+        if (!hasValidState())
+        {
+            return {};
+        }
+        return getCurrentNode().clip_name;
         //switch (m_state)
         //{
         //    case States::_idle:

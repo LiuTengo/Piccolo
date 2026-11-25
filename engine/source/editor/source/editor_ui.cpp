@@ -272,6 +272,7 @@ namespace Piccolo
         showEditorGameWindow(&m_game_engine_window_open);
         showEditorFileContentWindow(&m_file_content_window_open);
         showEditorDetailWindow(&m_detail_window_open);
+        m_animation_fsm_editor.draw();
     }
 
     void EditorUI::showEditorMenu(bool* p_open)
@@ -826,6 +827,14 @@ namespace Piccolo
 
     void EditorUI::onFileContentItemClicked(EditorFileNode* node)
     {
+        const std::string fsm_suffix = ".animation_state_machine.json";
+        if (node->m_file_path.size() >= fsm_suffix.size() &&
+            node->m_file_path.compare(node->m_file_path.size() - fsm_suffix.size(), fsm_suffix.size(), fsm_suffix) == 0)
+        {
+            m_animation_fsm_editor.open(node->m_file_path);
+            return;
+        }
+
         if (node->m_file_type != "object")
             return;
 
