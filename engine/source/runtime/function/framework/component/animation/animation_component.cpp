@@ -135,17 +135,17 @@ namespace Piccolo
     }
 
 
-    AnimationPose evaluateStatePose(Piccolo::Reflection::ReflectionPtr<ClipBase> clip, float ratio, AnimationPose& out_pose)
+    void AnimationComponent::evaluateStatePose(Piccolo::Reflection::ReflectionPtr<ClipBase> clip, float ratio, AnimationPose& out_pose)
     {
         //计算当前动画资产的pose
-        AnimationPose res_pose;
-
-        return res_pose;
+        
     }
-    void crossfade(const AnimationPose& src_pose, const AnimationPose& target_pose, float alpha, AnimationPose& out_pose)
+
+    void AnimationComponent::crossfade(const AnimationPose& src_pose, const AnimationPose& target_pose, float alpha, AnimationPose& out_pose)
     {
 
     }
+
     void AnimationComponent::tick(float delta_time)
     {
         if ((m_tick_in_editor_mode == false) && g_is_editor_mode)
@@ -256,15 +256,16 @@ namespace Piccolo
         AnimationPose target_pose;
         evaluateStatePose(clip, m_ratio, target_pose);
 
-        //FIXME: sss
+        //FIXME: 
+        m_elapsed_time = state_change ? (m_elapsed_time + delta_time) : 0.0f;
 		float duration = m_animation_fsm.m_transitions[fsm_res.transition_id].transition_duration;
-		float elapsed_time = delta_time;
-		float alpha = std::clamp(elapsed_time/duration, 0.0f, 1.0f);
+		float alpha = std::clamp(m_elapsed_time /duration, 0.0f, 1.0f);
 
         AnimationPose final_pose;
         crossfade(src_pose, target_pose, alpha, final_pose);
 
         m_skeleton.applyPose(final_pose);
+        m_animation_result = m_skeleton.outputAnimationResult();
 
         if (clip) {
             if (clip.getTypeName() == "BlendSpace1D")

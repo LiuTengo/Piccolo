@@ -27,7 +27,7 @@ namespace Piccolo
         void                   blend(float desired_ratio, BlendState* blend_state);
         void                   blend1D(float desired_ratio, BlendSpace1D* blend_state);
 		
-        AnimationPose evaluateStatePose(Piccolo::Reflection::ReflectionPtr<ClipBase> clip, float ratio, AnimationPose& out_pose);
+        void evaluateStatePose(Piccolo::Reflection::ReflectionPtr<ClipBase> clip, float ratio, AnimationPose& out_pose);
         void crossfade(const AnimationPose& src_pose, const AnimationPose& target_pose, float alpha, AnimationPose& out_pose);
 
         template<typename T>
@@ -50,5 +50,6 @@ namespace Piccolo
         json11::Json          m_animation_fsm_json;
         json11::Json::object  m_signal;
         float                 m_ratio {0};
+        float                 m_elapsed_time{0};
     };
 } // namespace Piccolo
