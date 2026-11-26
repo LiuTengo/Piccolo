@@ -82,6 +82,11 @@ namespace Piccolo
         m_instance_id_allocator.clear();
         m_mesh_object_id_map.clear();
         m_render_entities.clear();
+        m_directional_light_visible_mesh_nodes.clear();
+        m_point_lights_visible_mesh_nodes.clear();
+        m_main_camera_visible_mesh_nodes.clear();
+        m_render_axis.reset();
+        m_axis_node = {};
     }
 
     void RenderScene::updateVisibleObjectsDirectionalLight(std::shared_ptr<RenderResource> render_resource,

@@ -234,6 +234,7 @@ namespace Piccolo
 
     void RenderSystem::clearForLevelReloading()
     {
+        m_swap_context.clearAll();
         m_render_scene->clearForLevelReloading();
     }
 

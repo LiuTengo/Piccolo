@@ -75,12 +75,12 @@ namespace Piccolo
         return true;
     }
 
-    void AnimationComponent::blend1D(float desired_ratio, BlendSpace1D* blend_state)
+    AnimationPose AnimationComponent::blend1D(float desired_ratio, BlendSpace1D* blend_state)
     {
         if (blend_state->m_values.size() < 2)
         {
             // no need to interpolate
-            return;
+            return AnimationPose();
         }
         const auto& key_it    = m_signal.find(blend_state->m_key);
         double      key_value = 0;
@@ -131,19 +131,51 @@ namespace Piccolo
             blend_state->m_blend_weight[max_smaller + 1] = weight;
             blend_state->m_blend_weight[max_smaller]     = 1 - weight;
         }
-        blend(desired_ratio, blend_state);
+        return blend(desired_ratio, blend_state);
     }
 
 
     void AnimationComponent::evaluateStatePose(Piccolo::Reflection::ReflectionPtr<ClipBase> clip, float ratio, AnimationPose& out_pose)
     {
         //计算当前动画资产的pose
-        
+        if (clip) {
+            if (clip.getTypeName() == "BlendSpace1D")
+            {
+                auto blend_state_1d_pre = static_cast<BlendSpace1D*>(clip);
+                out_pose = blend1D(m_ratio, blend_state_1d_pre);
+            }
+            else if (clip.getTypeName() == "BlendState")
+            {
+                auto blend_state = static_cast<BlendState*>(clip);
+                out_pose = blend(m_ratio, blend_state);
+            }
+            else if (clip.getTypeName() == "BasicClip")
+            {
+                auto basic_clip = static_cast<BasicClip*>(clip);
+                out_pose = animateBasicClip(m_ratio, basic_clip);
+            }
+        }
     }
 
     void AnimationComponent::crossfade(const AnimationPose& src_pose, const AnimationPose& target_pose, float alpha, AnimationPose& out_pose)
     {
+        float t = alpha * alpha * (3 - 2 * alpha);
+		int bone_count = std::min(src_pose.m_bone_poses.size(), target_pose.m_bone_poses.size());
 
+        out_pose.m_reorder = false;
+        out_pose.m_bone_poses.resize(bone_count);
+
+        for (int i = 0; i< bone_count; i++) {
+			const Transform& src_transform = src_pose.m_bone_poses[i];
+			const Transform& target_transform = target_pose.m_bone_poses[i];
+
+            // 线性插值位置和缩放
+            Vector3 blended_position = src_transform.m_position * (1.0f - t) + target_transform.m_position * t;
+            Vector3 blended_scale = src_transform.m_scale * (1.0f - t) + target_transform.m_scale * t;
+            // 球面线性插值旋转
+            Quaternion blended_rotation = Quaternion::sLerp(t,src_transform.m_rotation, target_transform.m_rotation,true);
+			out_pose.m_bone_poses[i] = Transform(blended_position, blended_rotation, blended_scale);
+        }
     }
 
     void AnimationComponent::tick(float delta_time)
@@ -248,43 +280,45 @@ namespace Piccolo
         // 5. 根据是否切换状态更新播放进度
         m_ratio = (state_change) ? 0.0f : m_ratio;
 
-        // 拿到当前的Clip 根据ratio获取clip的pose并和当前pose做blend
-        auto clip = m_animation_fsm.getCurrentClipBase(m_animation_res);
+        
+        float alpha = 1.0f;
+        if (state_change) {
+            m_transition_active = true;
+            m_cross_duration = m_animation_fsm.m_transitions[fsm_res.transition_id].transition_duration;
+            m_elapsed_time = 0.0f;
+            m_skeleton.extractPose(src_pose);
 
-        AnimationPose src_pose;
-        m_skeleton.extractPose(src_pose);
+        }
+
+        if (m_cross_duration > 0.0001f) {
+            alpha = std::clamp(m_elapsed_time / m_cross_duration, 0.0f, 1.0f);
+        }
+        else {
+			alpha = 1.0f;
+        }
+        m_elapsed_time += delta_time;
+
+        // 拿到当前的Clip 根据ratio获取clip的pose并和当前pose做blend
         AnimationPose target_pose;
+        auto clip = m_animation_fsm.getCurrentClipBase(m_animation_res);
         evaluateStatePose(clip, m_ratio, target_pose);
 
-        //FIXME: 
-        m_elapsed_time = state_change ? (m_elapsed_time + delta_time) : 0.0f;
-		float duration = m_animation_fsm.m_transitions[fsm_res.transition_id].transition_duration;
-		float alpha = std::clamp(m_elapsed_time /duration, 0.0f, 1.0f);
 
+        //Cross fade
         AnimationPose final_pose;
-        crossfade(src_pose, target_pose, alpha, final_pose);
-
-        m_skeleton.applyPose(final_pose);
-        m_animation_result = m_skeleton.outputAnimationResult();
-
-        if (clip) {
-            if (clip.getTypeName() == "BlendSpace1D")
-            {
-                auto blend_state_1d_pre = static_cast<BlendSpace1D*>(clip);
-                blend1D(m_ratio, blend_state_1d_pre);
-            }
-            else if (clip.getTypeName() == "BlendState")
-            {
-                auto blend_state = static_cast<BlendState*>(clip);
-                blend(m_ratio, blend_state);
-            }
-            else if (clip.getTypeName() == "BasicClip")
-            {
-                auto basic_clip = static_cast<BasicClip*>(clip);
-                animateBasicClip(m_ratio, basic_clip);
-            }
+        if (m_transition_active) {
+            crossfade(src_pose, target_pose, alpha, final_pose);
+            m_skeleton.applyPose(final_pose);
+            m_animation_result = m_skeleton.outputAnimationResult();
         }
-    
+        else {
+            m_skeleton.applyPose(target_pose);
+            m_animation_result = m_skeleton.outputAnimationResult();
+        }
+
+        if (m_transition_active && m_elapsed_time > m_cross_duration) {
+            m_transition_active = false;
+        }
     }
 
     void AnimationComponent::parameter_update(float delta_tick)
@@ -293,7 +327,7 @@ namespace Piccolo
 
     const AnimationResult& AnimationComponent::getResult() const { return m_animation_result; }
 
-    void AnimationComponent::animateBasicClip(float desired_ratio, BasicClip* basic_clip)
+    AnimationPose AnimationComponent::animateBasicClip(float desired_ratio, BasicClip* basic_clip)
     {
         auto                       clip_data = AnimationManager::getClipData(*basic_clip);
 
@@ -304,11 +338,11 @@ namespace Piccolo
             m_skeleton.applyAdditivePose(pose);
             m_skeleton.extractPose(pose);
         
-
-        m_skeleton.applyPose(pose);
+			return pose;
+        //m_skeleton.applyPose(pose);
         //m_animation_result = m_skeleton.outputAnimationResult();
     }
-    void AnimationComponent::blend(float desired_ratio, BlendState* blend_state)
+    AnimationPose AnimationComponent::blend(float desired_ratio, BlendState* blend_state)
     {
 
         for (auto& ratio : blend_state->m_blend_ratio)
@@ -337,7 +371,8 @@ namespace Piccolo
             poses[0].blend(poses[i]);
         }
 
-        m_skeleton.applyPose(poses[0]);
+        return poses[0];
+        //m_skeleton.applyPose(poses[0]);
         //m_animation_result = m_skeleton.outputAnimationResult();
     }
 } // namespace Pilot

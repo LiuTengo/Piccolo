@@ -213,6 +213,14 @@ namespace Piccolo
                 continue;
             }
 
+            if (transition["transition_duration"].is_number() &&
+                transition["transition_duration"].number_value() < 0.0)
+            {
+                addError(result,
+                         "Transition " + std::to_string(transition_index) +
+                             " has a negative transition_duration.");
+            }
+
             const int source = transition["source"].int_value();
             const int target = transition["target"].int_value();
             if (source < 0 || static_cast<size_t>(source) >= states.size())

@@ -42,6 +42,23 @@ namespace Piccolo
         }
     }
 
+    void RenderSwapContext::clearAll()
+    {
+        for (RenderSwapData& swap_data : m_swap_data)
+        {
+            swap_data.m_level_resource_desc.reset();
+            swap_data.m_game_object_resource_desc.reset();
+            swap_data.m_game_object_to_delete.reset();
+            swap_data.m_camera_swap_data.reset();
+            swap_data.m_particle_submit_request.reset();
+            swap_data.m_emitter_tick_request.reset();
+            swap_data.m_emitter_transform_request.reset();
+        }
+
+        m_logic_swap_data_index  = LogicSwapDataType;
+        m_render_swap_data_index = RenderSwapDataType;
+    }
+
     bool RenderSwapContext::isReadyToSwap() const
     {
         return !(m_swap_data[m_render_swap_data_index].m_level_resource_desc.has_value() ||

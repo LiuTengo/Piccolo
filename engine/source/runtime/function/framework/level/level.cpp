@@ -19,11 +19,15 @@ namespace Piccolo
 
     void Level::clear()
     {
+        m_is_loaded = false;
         m_current_active_character.reset();
         m_gobjects.clear();
 
-        ASSERT(g_runtime_global_context.m_physics_manager);
-        g_runtime_global_context.m_physics_manager->deletePhysicsScene(m_physics_scene);
+        if (!m_physics_scene.expired() && g_runtime_global_context.m_physics_manager)
+        {
+            g_runtime_global_context.m_physics_manager->deletePhysicsScene(m_physics_scene);
+        }
+        m_physics_scene.reset();
     }
 
     GObjectID Level::createObject(const ObjectInstanceRes& object_instance_res)

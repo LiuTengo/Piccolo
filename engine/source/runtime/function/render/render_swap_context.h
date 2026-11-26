@@ -112,6 +112,7 @@ namespace Piccolo
         RenderSwapData& getLogicSwapData();
         RenderSwapData& getRenderSwapData();
         void            swapLogicRenderData();
+        void            clearAll();
         void            resetLevelRsourceSwapData();
         void            resetGameObjectResourceSwapData();
         void            resetGameObjectToDelete();

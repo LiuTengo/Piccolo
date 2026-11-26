@@ -31,6 +31,7 @@ namespace Piccolo
     {
         int                      m_source {0};
         int                      m_target {0};
+        float                    m_transition_duration {0.15f};
         std::vector<FSMCondition> m_conditions;
     };
 
@@ -108,6 +109,8 @@ namespace Piccolo
         ImVec2                                                   m_canvas_offset {40.0f, 40.0f};
         std::string                                              m_file_path;
         std::string                                              m_pending_file_path;
+        std::string                                              m_status_message;
+        bool                                                     m_status_is_error {false};
         std::vector<AnimationFSMEditorParameter>                 m_parameters;
         std::vector<AnimationFSMEditorState>                     m_states;
         std::vector<AnimationFSMEditorTransition>                m_transitions;

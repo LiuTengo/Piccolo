@@ -2,6 +2,8 @@
 
 #include "runtime/core/base/macro.h"
 #include "runtime/function/animation/animation_fsm_validation.h"
+#include "runtime/function/global/global_context.h"
+#include "runtime/resource/config_manager/config_manager.h"
 
 #include <algorithm>
 #include <array>
@@ -11,6 +13,10 @@
 #include <fstream>
 #include <sstream>
 #include <utility>
+
+#ifndef PICCOLO_SOURCE_DIR
+#define PICCOLO_SOURCE_DIR ""
+#endif
 
 namespace Piccolo
 {
@@ -60,6 +66,39 @@ namespace Piccolo
         std::string getFileName(const std::string& file_path)
         {
             return std::filesystem::path(file_path).filename().generic_string();
+        }
+
+        bool writeJsonFile(const std::filesystem::path& file_path,
+                           const std::string& json_text,
+                           std::string& error_message)
+        {
+            std::error_code error_code;
+            const std::filesystem::path parent_path = file_path.parent_path();
+            if (!parent_path.empty())
+            {
+                std::filesystem::create_directories(parent_path, error_code);
+                if (error_code)
+                {
+                    error_message = "Create directory failed: " + parent_path.generic_string();
+                    return false;
+                }
+            }
+
+            std::ofstream file(file_path, std::ios::out | std::ios::trunc);
+            if (!file.is_open())
+            {
+                error_message = "Open file for writing failed: " + file_path.generic_string();
+                return false;
+            }
+
+            file << json_text;
+            file.flush();
+            if (!file.good())
+            {
+                error_message = "Write file failed: " + file_path.generic_string();
+                return false;
+            }
+            return true;
         }
 
         void drawVerticalSplitter(const char* id, float height, float& panel_width, float drag_direction, float min_width, float max_width)
@@ -221,6 +260,18 @@ namespace Piccolo
         {
             ImGui::SameLine();
             ImGui::TextColored(ImVec4(1.0f, 0.75f, 0.2f, 1.0f), "Select target state. Esc cancels.");
+        }
+
+        if (!m_status_message.empty())
+        {
+            if (m_status_is_error)
+            {
+                ImGui::TextColored(ImVec4(1.0f, 0.45f, 0.45f, 1.0f), "%s", m_status_message.c_str());
+            }
+            else
+            {
+                ImGui::TextColored(ImVec4(0.55f, 1.0f, 0.55f, 1.0f), "%s", m_status_message.c_str());
+            }
         }
     }
 
@@ -602,6 +653,15 @@ namespace Piccolo
                 }
                 ImGui::EndCombo();
             }
+            if (ImGui::DragFloat("Transition Duration",
+                                 &transition.m_transition_duration,
+                                 0.01f,
+                                 0.0f,
+                                 2.0f,
+                                 "%.2f s"))
+            {
+                markDirty();
+            }
 
             ImGui::Separator();
             ImGui::TextUnformatted("Conditions");
@@ -830,6 +890,10 @@ namespace Piccolo
             AnimationFSMEditorTransition transition;
             transition.m_source = transition_json["source"].int_value();
             transition.m_target = transition_json["target"].int_value();
+            transition.m_transition_duration =
+                transition_json["transition_duration"].is_number()
+                    ? static_cast<float>(transition_json["transition_duration"].number_value())
+                    : 0.15f;
 
             for (const json11::Json& condition_json : transition_json["conditions"].array_items())
             {
@@ -903,8 +967,10 @@ namespace Piccolo
         for (const AnimationFSMEditorTransition& transition : m_transitions)
         {
             json11::Json::object transition_json;
-            transition_json["source"] = transition.m_source;
-            transition_json["target"] = transition.m_target;
+            transition_json["source"]              = transition.m_source;
+            transition_json["target"]              = transition.m_target;
+            transition_json["transition_duration"] =
+                static_cast<double>(transition.m_transition_duration);
 
             json11::Json::array condition_array;
             for (const FSMCondition& condition : transition.m_conditions)
@@ -934,27 +1000,59 @@ namespace Piccolo
         if (!m_validation_errors.empty())
         {
             LOG_ERROR("Cannot save invalid animation FSM: {}", m_file_path);
+            m_status_message  = "Save failed: fix validation errors first.";
+            m_status_is_error = true;
             return false;
         }
 
         const json11::Json root = buildDocumentJson();
-        std::ofstream file(m_file_path);
-        if (!file.is_open())
-        {
-            LOG_ERROR("Open animation FSM for writing failed: {}", m_file_path);
-            return false;
-        }
         std::string json_text;
         root.dump(json_text);
-        file << json_text;
-        file.flush();
-        if (!file.good())
+
+        std::vector<std::filesystem::path> save_paths;
+        const std::filesystem::path        runtime_path = std::filesystem::absolute(m_file_path);
+        save_paths.push_back(runtime_path);
+
+        const std::filesystem::path runtime_asset_folder =
+            g_runtime_global_context.m_config_manager->getAssetFolder();
+        std::error_code relative_error;
+        const std::filesystem::path relative_path =
+            std::filesystem::relative(runtime_path, runtime_asset_folder, relative_error);
+        if (!relative_error && !relative_path.empty())
         {
-            LOG_ERROR("Write animation FSM failed: {}", m_file_path);
-            return false;
+            const std::filesystem::path source_asset_folder =
+                std::filesystem::path(PICCOLO_SOURCE_DIR) / "engine" / "asset";
+            const std::filesystem::path source_path =
+                (source_asset_folder / relative_path).lexically_normal();
+            if (source_path.generic_string() != runtime_path.generic_string())
+            {
+                save_paths.push_back(source_path);
+            }
         }
 
-        m_dirty = false;
+        std::vector<std::string> saved_paths;
+        for (const std::filesystem::path& save_path : save_paths)
+        {
+            std::string error_message;
+            if (!writeJsonFile(save_path, json_text, error_message))
+            {
+                LOG_ERROR("{}", error_message);
+                m_status_message  = "Save failed: " + error_message;
+                m_status_is_error = true;
+                return false;
+            }
+            saved_paths.push_back(save_path.generic_string());
+        }
+
+        m_dirty           = false;
+        m_status_is_error = false;
+        m_status_message  = "Saved: ";
+        for (size_t path_index = 0; path_index < saved_paths.size(); ++path_index)
+        {
+            if (path_index > 0)
+                m_status_message += " | ";
+            m_status_message += saved_paths[path_index];
+        }
         return true;
     }
 
