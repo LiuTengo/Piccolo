@@ -14,6 +14,36 @@
 
 namespace Piccolo
 {
+    namespace
+    {
+        std::string jsonToString(const json11::Json& value)
+        {
+            std::string result;
+            value.dump(result);
+            return result;
+        }
+
+        const char* compareOperatorToString(CompareOperator op)
+        {
+            switch (op)
+            {
+                case CompareOperator::Equal:
+                    return "Equal";
+                case CompareOperator::NotEqual:
+                    return "NotEqual";
+                case CompareOperator::Greater:
+                    return "Greater";
+                case CompareOperator::Less:
+                    return "Less";
+                case CompareOperator::GreaterEqual:
+                    return "GreaterEqual";
+                case CompareOperator::LessEqual:
+                    return "LessEqual";
+            }
+            return "Unknown";
+        }
+    } // namespace
+
     void AnimationComponent::postLoadResource(std::weak_ptr<GObject> parent_object)
     {
         m_parent_object = parent_object;
@@ -284,7 +314,7 @@ namespace Piccolo
         float alpha = 1.0f;
         if (state_change) {
             m_transition_active = true;
-            m_cross_duration = m_animation_fsm.m_transitions[fsm_res.transition_id].transition_duration;
+            m_cross_duration = m_animation_fsm.m_transitions.at(fsm_res.transition_id).transition_duration;
             m_elapsed_time = 0.0f;
             m_skeleton.extractPose(src_pose);
 
@@ -326,6 +356,77 @@ namespace Piccolo
     }
 
     const AnimationResult& AnimationComponent::getResult() const { return m_animation_result; }
+
+    AnimationDebugInfo AnimationComponent::buildDebugInfo() const
+    {
+        AnimationDebugInfo info;
+        if (!m_animation_fsm.hasValidState())
+            return info;
+
+        const FSMNode& current_node = m_animation_fsm.getCurrentNode();
+        info.m_valid              = true;
+        info.m_state_id           = current_node.state_id;
+        info.m_state_name         = current_node.state_name;
+        info.m_clip_name          = current_node.clip_name;
+        info.m_loop               = current_node.loop;
+        info.m_playback_ratio     = m_ratio;
+        info.m_transition_active  = m_transition_active;
+        info.m_transition_elapsed = m_elapsed_time;
+        info.m_transition_duration = m_cross_duration;
+        info.m_transition_alpha =
+            m_transition_active && m_cross_duration > 0.0001f
+                ? std::clamp(m_elapsed_time / m_cross_duration, 0.0f, 1.0f)
+                : 1.0f;
+
+        for (const auto& signal : m_signal)
+        {
+            info.m_signals.emplace_back(signal.first, jsonToString(signal.second));
+        }
+
+        for (uint16_t transition_id : current_node.transitions)
+        {
+            const auto transition_iter = m_animation_fsm.m_transitions.find(transition_id);
+            if (transition_iter == m_animation_fsm.m_transitions.end())
+                continue;
+
+            const FSMTransition& transition = transition_iter->second;
+            AnimationTransitionDebugInfo transition_info;
+            transition_info.m_transition_id       = transition_id;
+            transition_info.m_source_state_id     = transition.source;
+            transition_info.m_target_state_id     = transition.target;
+            transition_info.m_transition_duration = transition.transition_duration;
+            transition_info.m_matched             = transition.checkCondition(m_signal);
+            const auto target_node_iter = m_animation_fsm.m_nodes.find(transition.target);
+            transition_info.m_target_state_name =
+                target_node_iter != m_animation_fsm.m_nodes.end()
+                    ? target_node_iter->second.state_name
+                    : "<invalid>";
+
+            for (const FSMCondition& condition : transition.conditions)
+            {
+                AnimationConditionDebugInfo condition_info;
+                condition_info.m_parameter_name = condition.parameter_name;
+                condition_info.m_operator_name  = compareOperatorToString(condition.op);
+                condition_info.m_expected_value = jsonToString(condition.value);
+
+                const auto found = m_signal.find(condition.parameter_name);
+                condition_info.m_parameter_exists = found != m_signal.end();
+                if (condition_info.m_parameter_exists)
+                {
+                    condition_info.m_actual_value = jsonToString(found->second);
+                    condition_info.m_matched      = condition.evaluate(found->second);
+                }
+                else
+                {
+                    condition_info.m_actual_value = "<missing>";
+                }
+                transition_info.m_conditions.push_back(condition_info);
+            }
+            info.m_transitions.push_back(transition_info);
+        }
+
+        return info;
+    }
 
     AnimationPose AnimationComponent::animateBasicClip(float desired_ratio, BasicClip* basic_clip)
     {

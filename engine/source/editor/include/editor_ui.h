@@ -5,6 +5,7 @@
 
 #include "runtime/core/math/vector2.h"
 
+#include "runtime/function/framework/component/animation/animation_component.h"
 #include "runtime/function/framework/object/object.h"
 #include "runtime/function/ui/window_ui.h"
 
@@ -39,6 +40,7 @@ namespace Piccolo
         void showEditorFileContentWindow(bool* p_open);
         void showEditorGameWindow(bool* p_open);
         void showEditorDetailWindow(bool* p_open);
+        void showEditorAnimationDebuggerWindow(bool* p_open);
 
         void setUIColorStyle();
 
@@ -60,5 +62,7 @@ namespace Piccolo
         bool m_detail_window_open            = true;
         bool m_scene_lights_window_open      = true;
         bool m_scene_lights_data_window_open = true;
+        bool m_animation_debugger_window_open = true;
+        bool m_animation_debugger_show_conditions = true;
     };
 } // namespace Piccolo

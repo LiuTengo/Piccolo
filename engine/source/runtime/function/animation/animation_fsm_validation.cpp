@@ -1,6 +1,8 @@
 #include "runtime/function/animation/animation_fsm_validation.h"
 
 #include <algorithm>
+#include <cstdint>
+#include <limits>
 #include <map>
 #include <set>
 #include <utility>
@@ -23,6 +25,17 @@ namespace Piccolo
         bool isBoolOperator(const std::string& op)
         {
             return op == "Equal" || op == "NotEqual";
+        }
+
+        bool isUint16Integer(const json11::Json& value)
+        {
+            if (!value.is_number())
+                return false;
+
+            const double number = value.number_value();
+            return number >= 0.0 &&
+                   number <= static_cast<double>(std::numeric_limits<uint16_t>::max()) &&
+                   static_cast<double>(static_cast<uint16_t>(number)) == number;
         }
     } // namespace
 
@@ -62,14 +75,6 @@ namespace Piccolo
         }
 
         const int initial_state_id = fsm_json["initial_state_id"].int_value();
-        if (!fsm_json["initial_state_id"].is_number())
-        {
-            addError(result, "FSM field 'initial_state_id' is required and must be a number.");
-        }
-        else if (initial_state_id < 0 || static_cast<size_t>(initial_state_id) >= states.size())
-        {
-            addError(result, "Initial state ID " + std::to_string(initial_state_id) + " is out of range.");
-        }
 
         std::map<std::string, std::string> parameter_types {
             {"speed", "Float"},
@@ -125,8 +130,9 @@ namespace Piccolo
             }
         }
 
-        std::set<std::string>        state_names;
-        std::vector<std::set<int>>   expected_transitions(states.size());
+        std::set<std::string>              state_names;
+        std::set<int>                      state_ids;
+        std::map<int, std::set<int>>       expected_transitions;
 
         for (size_t state_index = 0; state_index < states.size(); ++state_index)
         {
@@ -137,11 +143,22 @@ namespace Piccolo
                 continue;
             }
 
-            if (!state["state_id"].is_number() || state["state_id"].int_value() != static_cast<int>(state_index))
+            int  state_id       = -1;
+            bool state_id_valid = false;
+            if (!isUint16Integer(state["state_id"]))
             {
                 addError(result,
-                         "State at index " + std::to_string(state_index) +
-                             " must have state_id equal to its array index.");
+                         "State " + std::to_string(state_index) +
+                             " requires an integer state_id in the range 0..65535.");
+            }
+            else
+            {
+                state_id = state["state_id"].int_value();
+                state_id_valid = true;
+                if (!state_ids.insert(state_id).second)
+                {
+                    addError(result, "Duplicate state_id " + std::to_string(state_id) + ".");
+                }
             }
 
             const std::string state_name = state["state_name"].string_value();
@@ -172,21 +189,19 @@ namespace Piccolo
 
             for (const json11::Json& transition_id_json : state["transitions"].array_items())
             {
-                if (!transition_id_json.is_number())
+                if (!isUint16Integer(transition_id_json))
                 {
-                    addError(result, "State '" + state_name + "' contains a non-numeric transition ID.");
+                    addError(result,
+                             "State '" + state_name +
+                                 "' contains a transition ID that is not an integer in the range 0..65535.");
                     continue;
                 }
 
                 const int transition_id = transition_id_json.int_value();
-                if (transition_id < 0 || static_cast<size_t>(transition_id) >= transitions.size())
-                {
-                    addError(result,
-                             "State '" + state_name + "' references transition ID " +
-                                 std::to_string(transition_id) + " which is out of range.");
+                if (!state_id_valid)
                     continue;
-                }
-                if (!expected_transitions[state_index].insert(transition_id).second)
+
+                if (!expected_transitions[state_id].insert(transition_id).second)
                 {
                     addError(result,
                              "State '" + state_name + "' contains duplicate transition ID " +
@@ -194,6 +209,19 @@ namespace Piccolo
                 }
             }
         }
+
+        if (!isUint16Integer(fsm_json["initial_state_id"]))
+        {
+            addError(result,
+                     "FSM field 'initial_state_id' is required and must be an integer in the range 0..65535.");
+        }
+        else if (state_ids.find(initial_state_id) == state_ids.end())
+        {
+            addError(result, "Initial state ID " + std::to_string(initial_state_id) + " does not exist.");
+        }
+
+        std::set<int>        transition_ids;
+        std::map<int, int>   transition_sources;
 
         for (size_t transition_index = 0; transition_index < transitions.size(); ++transition_index)
         {
@@ -205,11 +233,14 @@ namespace Piccolo
                 continue;
             }
 
-            if (!transition["source"].is_number() || !transition["target"].is_number())
+            if (!isUint16Integer(transition["transition_id"]) ||
+                !isUint16Integer(transition["source"]) ||
+                !isUint16Integer(transition["target"]))
             {
                 addError(result,
                          "Transition " + std::to_string(transition_index) +
-                             " requires numeric source and target fields.");
+                             " requires integer transition_id, source and target fields "
+                             "in the range 0..65535.");
                 continue;
             }
 
@@ -221,24 +252,30 @@ namespace Piccolo
                              " has a negative transition_duration.");
             }
 
+            const int transition_id = transition["transition_id"].int_value();
+            if (!transition_ids.insert(transition_id).second)
+            {
+                addError(result, "Duplicate transition_id " + std::to_string(transition_id) + ".");
+            }
+
             const int source = transition["source"].int_value();
             const int target = transition["target"].int_value();
-            if (source < 0 || static_cast<size_t>(source) >= states.size())
+            if (state_ids.find(source) == state_ids.end())
             {
                 addError(result,
                          "Transition " + std::to_string(transition_index) + " has invalid source " +
                              std::to_string(source) + ".");
                 continue;
             }
-            if (target < 0 || static_cast<size_t>(target) >= states.size())
+            transition_sources[transition_id] = source;
+            if (state_ids.find(target) == state_ids.end())
             {
                 addError(result,
                          "Transition " + std::to_string(transition_index) + " has invalid target " +
                              std::to_string(target) + ".");
             }
 
-            if (expected_transitions[source].find(static_cast<int>(transition_index)) ==
-                expected_transitions[source].end())
+            if (expected_transitions[source].find(transition_id) == expected_transitions[source].end())
             {
                 addError(result,
                          "Transition " + std::to_string(transition_index) + " has source " +
@@ -318,6 +355,30 @@ namespace Piccolo
                                  "Condition for numeric parameter '" + parameter_name +
                                      "' requires a numeric value.");
                     }
+                }
+            }
+        }
+
+        for (const auto& state_transitions : expected_transitions)
+        {
+            for (int transition_id : state_transitions.second)
+            {
+                if (transition_ids.find(transition_id) == transition_ids.end())
+                {
+                    addError(result,
+                             "State ID " + std::to_string(state_transitions.first) +
+                                 " references missing transition ID " + std::to_string(transition_id) + ".");
+                    continue;
+                }
+
+                const auto source_iter = transition_sources.find(transition_id);
+                if (source_iter != transition_sources.end() &&
+                    source_iter->second != state_transitions.first)
+                {
+                    addError(result,
+                             "Transition ID " + std::to_string(transition_id) + " is listed by state ID " +
+                                 std::to_string(state_transitions.first) + " but its source is state ID " +
+                                 std::to_string(source_iter->second) + ".");
                 }
             }
         }

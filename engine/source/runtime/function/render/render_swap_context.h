@@ -12,6 +12,7 @@
 #include <deque>
 #include <optional>
 #include <string>
+#include <vector>
 
 namespace Piccolo
 {
@@ -52,15 +53,22 @@ namespace Piccolo
         GameObjectDesc& getNextProcessObject();
     };
 
+    struct ParticleEmitterSubmitDesc
+    {
+        ParticleEmitterID   m_id {k_invalid_particke_emmiter_id};
+        ParticleEmitterDesc m_desc;
+    };
+
     struct ParticleSubmitRequest
     {
-        std::vector<ParticleEmitterDesc> m_emitter_descs;
+        std::vector<ParticleEmitterSubmitDesc> m_emitter_descs;
 
-        void add(ParticleEmitterDesc& desc);
+        void add(ParticleEmitterID id, const ParticleEmitterDesc& desc);
 
         unsigned int getEmitterCount() const;
 
         const ParticleEmitterDesc& getEmitterDesc(unsigned int index);
+        ParticleEmitterID          getEmitterID(unsigned int index) const;
     };
 
     struct EmitterTickRequest
@@ -94,7 +102,7 @@ namespace Piccolo
         void addDirtyGameObject(GameObjectDesc&& desc);
         void addDeleteGameObject(GameObjectDesc&& desc);
 
-        void addNewParticleEmitter(ParticleEmitterDesc& desc);
+        void addNewParticleEmitter(ParticleEmitterID id, const ParticleEmitterDesc& desc);
         void addTickParticleEmitter(ParticleEmitterID id);
         void updateParticleTransform(ParticleEmitterTransformDesc& desc);
     };

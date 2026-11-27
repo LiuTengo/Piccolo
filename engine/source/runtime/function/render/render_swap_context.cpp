@@ -12,13 +12,21 @@ namespace Piccolo
 
     void GameObjectResourceDesc::pop() { m_game_object_descs.pop_front(); }
 
-    void ParticleSubmitRequest::add(ParticleEmitterDesc& desc) { m_emitter_descs.push_back(desc); }
+    void ParticleSubmitRequest::add(ParticleEmitterID id, const ParticleEmitterDesc& desc)
+    {
+        m_emitter_descs.push_back({id, desc});
+    }
 
     unsigned int ParticleSubmitRequest::getEmitterCount() const { return m_emitter_descs.size(); }
 
     const ParticleEmitterDesc& ParticleSubmitRequest::getEmitterDesc(unsigned int index)
     {
-        return m_emitter_descs[index];
+        return m_emitter_descs[index].m_desc;
+    }
+
+    ParticleEmitterID ParticleSubmitRequest::getEmitterID(unsigned int index) const
+    {
+        return m_emitter_descs[index].m_id;
     }
 
     void EmitterTransformRequest::add(ParticleEmitterTransformDesc& desc) { m_transform_descs.push_back(desc); }
@@ -142,16 +150,16 @@ namespace Piccolo
         }
     }
 
-    void RenderSwapData::addNewParticleEmitter(ParticleEmitterDesc& desc)
+    void RenderSwapData::addNewParticleEmitter(ParticleEmitterID id, const ParticleEmitterDesc& desc)
     {
         if (m_particle_submit_request.has_value())
         {
-            m_particle_submit_request->add(desc);
+            m_particle_submit_request->add(id, desc);
         }
         else
         {
             ParticleSubmitRequest request;
-            request.add(desc);
+            request.add(id, desc);
             m_particle_submit_request = request;
         }
     }

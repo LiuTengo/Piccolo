@@ -18,35 +18,41 @@ namespace Piccolo
 		   }
 		   fsm.m_nodes.clear();
 		   fsm.m_transitions.clear();
-		   fsm.m_current_state_idx = 0;
+		   fsm.m_current_state_id = 0;
 		   return false;
 	   }
 
 	   fsm.m_nodes.clear();
 	   fsm.m_transitions.clear();
-	   fsm.m_current_state_idx = fsm_json["initial_state_id"].int_value();
+	   fsm.m_current_state_id = fsm_json["initial_state_id"].int_value();
 
 	   const auto& nodes = fsm_json["states"].array_items();
 	   const auto& transitions = fsm_json["transitions"].array_items();
 
-	   fsm.m_nodes.resize(nodes.size());
-       fsm.m_transitions.resize(transitions.size());
 
        for (size_t i = 0; i < nodes.size(); ++i) {
-           auto& node = fsm.m_nodes[i];
-           node.state_id = nodes[i]["state_id"].int_value();
-           node.state_name = nodes[i]["state_name"].string_value();
-           node.clip_name = nodes[i]["clip_name"].string_value();
-           node.loop = nodes[i]["loop"].bool_value();
+		   uint16_t state_id = nodes[i]["state_id"].int_value();
+
+           const auto node_result = fsm.m_nodes.emplace(state_id, FSMNode());
+           FSMNode&   n           = node_result.first->second;
+
+           n.state_id = nodes[i]["state_id"].int_value();
+           n.state_name = nodes[i]["state_name"].string_value();
+           n.clip_name = nodes[i]["clip_name"].string_value();
+           n.loop = nodes[i]["loop"].bool_value();
            auto& node_trans = nodes[i]["transitions"].array_items(); 
-		   node.transitions.resize(node_trans.size());
+		   n.transitions.resize(node_trans.size());
            for (size_t k = 0; k < node_trans.size(); ++k) {
-               node.transitions[k] = node_trans[k].int_value();
+               n.transitions[k] = node_trans[k].int_value();
            }
        }
 
        for (size_t i = 0; i < transitions.size(); ++i) {
-		   auto& transition = fsm.m_transitions[i];
+           uint16_t trans_id = transitions[i]["transition_id"].int_value();
+
+		   const auto transition_result = fsm.m_transitions.emplace(trans_id, FSMTransition());
+		   FSMTransition& transition     = transition_result.first->second;
+           transition.transition_id = trans_id;
            transition.source = transitions[i]["source"].int_value();
            transition.target = transitions[i]["target"].int_value();
 		   transition.transition_duration = transitions[i]["transition_duration"].number_value();
@@ -187,19 +193,20 @@ namespace Piccolo
         out_res.target_id = cur_node.state_id;
 
         for (const auto& transition_id : cur_node.transitions) {
-            if (transition_id >= m_transitions.size()) {
+            const auto transition_iter = m_transitions.find(transition_id);
+            if (transition_iter == m_transitions.end()) {
                 throw std::out_of_range("Transition ID is out of range of transitions.");
             }
 
-			const FSMTransition& transition = m_transitions[transition_id];
+			const FSMTransition& transition = transition_iter->second;
             if (transition.checkCondition(signals)) {
 
 				//cur_node.ExitNode(); // Exit the current node
-                m_current_state_idx = transition.target;
+                m_current_state_id = transition.target;
                 
                 //getCurrentNode().EnterNode(); // Enter the new node
 
-                out_res.target_id = m_current_state_idx;
+                out_res.target_id = m_current_state_id;
 				out_res.transition_id = transition_id;
                 
                 return true; // Transition occurred

@@ -496,11 +496,12 @@ namespace Piccolo
             m_emitter_buffer_batches[i].freeUpBatch(m_rhi);
         }
 
+        m_emitter_batch_index_by_id.clear();
         m_emitter_count = count;
         m_emitter_buffer_batches.resize(m_emitter_count);
     }
 
-    void ParticlePass::createEmitter(int id, const ParticleEmitterDesc& desc)
+    void ParticlePass::createEmitter(int id, ParticleEmitterID emitter_id, const ParticleEmitterDesc& desc)
     {
         const VkDeviceSize counterBufferSize = sizeof(ParticleCounter);
         ParticleCounter    counter;
@@ -765,6 +766,8 @@ namespace Piccolo
             m_rhi->destroyFence(fence);
             m_rhi->freeCommandBuffers(m_rhi->getCommandPoor(), 1, copyCmd);
         }
+
+        m_emitter_batch_index_by_id.emplace(emitter_id, static_cast<size_t>(id));
     }
 
     void ParticlePass::initializeEmitters()
@@ -1494,8 +1497,16 @@ namespace Piccolo
 
     void ParticlePass::simulate()
     {
-        for (auto i : m_emitter_tick_indices)
+        for (ParticleEmitterID emitter_id : m_emitter_tick_indices)
         {
+            const auto emitter_index_iter = m_emitter_batch_index_by_id.find(emitter_id);
+            if (emitter_index_iter == m_emitter_batch_index_by_id.end())
+                continue;
+
+            const size_t i = emitter_index_iter->second;
+            if (i >= m_emitter_buffer_batches.size())
+                continue;
+
             RHICommandBufferBeginInfo cmdBufInfo {};
             cmdBufInfo.sType = RHI_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
 
@@ -1895,7 +1906,14 @@ namespace Piccolo
     {
         for (ParticleEmitterTransformDesc& transform_desc : m_emitter_transform_indices)
         {
-            int index                                                 = transform_desc.m_id;
+            const auto emitter_index_iter = m_emitter_batch_index_by_id.find(transform_desc.m_id);
+            if (emitter_index_iter == m_emitter_batch_index_by_id.end())
+                continue;
+
+            const size_t index = emitter_index_iter->second;
+            if (index >= m_emitter_buffer_batches.size())
+                continue;
+
             m_emitter_buffer_batches[index].m_emitter_desc.m_position = transform_desc.m_position;
             m_emitter_buffer_batches[index].m_emitter_desc.m_rotation = transform_desc.m_rotation;
 

@@ -128,7 +128,6 @@ namespace Piccolo
         }
 
         const std::string level_url = active_level->getLevelResUrl();
-        m_current_active_level.reset();
         active_level->unload();
         m_loaded_levels.erase(level_url);
 

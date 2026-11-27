@@ -6,8 +6,50 @@
 #include "runtime/resource/res_type/components/animation.h"
 #include "runtime/function/animation/animation_FSM.h"
 #include "json11.hpp"
+
+#include <string>
+#include <utility>
+#include <vector>
+
 namespace Piccolo
 {
+    struct AnimationConditionDebugInfo
+    {
+        std::string m_parameter_name;
+        std::string m_operator_name;
+        std::string m_expected_value;
+        std::string m_actual_value;
+        bool        m_parameter_exists {false};
+        bool        m_matched {false};
+    };
+
+    struct AnimationTransitionDebugInfo
+    {
+        int         m_transition_id {0};
+        uint16_t    m_source_state_id {0};
+        uint16_t    m_target_state_id {0};
+        std::string m_target_state_name;
+        float       m_transition_duration {0.0f};
+        bool        m_matched {false};
+        std::vector<AnimationConditionDebugInfo> m_conditions;
+    };
+
+    struct AnimationDebugInfo
+    {
+        bool        m_valid {false};
+        uint16_t    m_state_id {0};
+        std::string m_state_name;
+        std::string m_clip_name;
+        bool        m_loop {false};
+        float       m_playback_ratio {0.0f};
+        bool        m_transition_active {false};
+        float       m_transition_alpha {1.0f};
+        float       m_transition_elapsed {0.0f};
+        float       m_transition_duration {0.0f};
+        std::vector<std::pair<std::string, std::string>> m_signals;
+        std::vector<AnimationTransitionDebugInfo>        m_transitions;
+    };
+
     REFLECTION_TYPE(AnimationComponent)
     CLASS(AnimationComponent : public Component, WhiteListFields)
     {
@@ -23,6 +65,7 @@ namespace Piccolo
         void parameter_update(float delta_tick);
 
         const AnimationResult& getResult() const;
+        AnimationDebugInfo     buildDebugInfo() const;
         AnimationPose                   animateBasicClip(float ratio, BasicClip* basic_clip);
         AnimationPose                   blend(float desired_ratio, BlendState* blend_state);
         AnimationPose                   blend1D(float desired_ratio, BlendSpace1D* blend_state);

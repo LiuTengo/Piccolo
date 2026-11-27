@@ -16,6 +16,7 @@
 
 #include "runtime/function/framework/component/mesh/mesh_component.h"
 #include "runtime/function/framework/component/transform/transform_component.h"
+#include "runtime/function/character/character.h"
 #include "runtime/function/framework/level/level.h"
 #include "runtime/function/framework/world/world_manager.h"
 #include "runtime/function/global/global_context.h"
@@ -272,6 +273,7 @@ namespace Piccolo
         showEditorGameWindow(&m_game_engine_window_open);
         showEditorFileContentWindow(&m_file_content_window_open);
         showEditorDetailWindow(&m_detail_window_open);
+        showEditorAnimationDebuggerWindow(&m_animation_debugger_window_open);
         m_animation_fsm_editor.draw();
     }
 
@@ -316,6 +318,7 @@ namespace Piccolo
 
             ImGui::DockBuilderDockWindow("World Objects", left_asset);
             ImGui::DockBuilderDockWindow("Components Details", right);
+            ImGui::DockBuilderDockWindow("Animation Debugger", right);
             ImGui::DockBuilderDockWindow("File Content", left_file_content);
             ImGui::DockBuilderDockWindow("Game Engine", left_game_engine);
 
@@ -330,8 +333,8 @@ namespace Piccolo
             {
                 if (ImGui::MenuItem("Reload Current Level"))
                 {
-                    g_runtime_global_context.m_world_manager->reloadCurrentLevel();
                     g_runtime_global_context.m_render_system->clearForLevelReloading();
+                    g_runtime_global_context.m_world_manager->reloadCurrentLevel();
                     g_editor_global_context.m_scene_manager->onGObjectSelected(k_invalid_gobject_id);
                 }
                 if (ImGui::MenuItem("Save Current Level"))
@@ -383,6 +386,7 @@ namespace Piccolo
                 ImGui::MenuItem("Game", nullptr, &m_game_engine_window_open);
                 ImGui::MenuItem("File Content", nullptr, &m_file_content_window_open);
                 ImGui::MenuItem("Detail", nullptr, &m_detail_window_open);
+                ImGui::MenuItem("Animation Debugger", nullptr, &m_animation_debugger_window_open);
                 ImGui::EndMenu();
             }
             ImGui::EndMenuBar();
@@ -569,6 +573,134 @@ namespace Piccolo
             createClassUI(object_instance);
             m_editor_ui_creator["TreeNodePop"](("<" + component_ptr.getTypeName() + ">").c_str(), nullptr);
         }
+        ImGui::End();
+    }
+
+    void EditorUI::showEditorAnimationDebuggerWindow(bool* p_open)
+    {
+        if (!*p_open)
+            return;
+
+        ImGui::SetNextWindowSize(ImVec2(460.0f, 520.0f), ImGuiCond_FirstUseEver);
+        if (!ImGui::Begin("Animation Debugger", p_open))
+        {
+            ImGui::End();
+            return;
+        }
+
+        std::shared_ptr<GObject> animation_object =
+            g_editor_global_context.m_scene_manager->getSelectedGObject().lock();
+        AnimationComponent* animation_component =
+            animation_object ? animation_object->tryGetComponent<AnimationComponent>("AnimationComponent") : nullptr;
+
+        if (animation_component == nullptr)
+        {
+            std::shared_ptr<Level> level = g_runtime_global_context.m_world_manager->getCurrentActiveLevel().lock();
+            std::shared_ptr<Character> character = level ? level->getCurrentActiveCharacter().lock() : nullptr;
+            animation_object = character ? character->getObject().lock() : nullptr;
+            animation_component =
+                animation_object
+                    ? animation_object->tryGetComponent<AnimationComponent>("AnimationComponent")
+                    : nullptr;
+        }
+
+        if (animation_component == nullptr)
+        {
+            ImGui::TextUnformatted("No active AnimationComponent.");
+            ImGui::End();
+            return;
+        }
+
+        const AnimationDebugInfo debug_info = animation_component->buildDebugInfo();
+        if (!debug_info.m_valid)
+        {
+            ImGui::TextUnformatted("Animation FSM is not valid.");
+            ImGui::End();
+            return;
+        }
+
+        ImGui::Text("Object: %s", animation_object->getName().c_str());
+        ImGui::Text("State: %s", debug_info.m_state_name.c_str());
+        ImGui::Text("Clip: %s", debug_info.m_clip_name.c_str());
+        ImGui::Text("State ID: %u  Loop: %s",
+                    static_cast<unsigned int>(debug_info.m_state_id),
+                    debug_info.m_loop ? "true" : "false");
+        ImGui::ProgressBar(debug_info.m_playback_ratio, ImVec2(-1.0f, 0.0f), "Playback");
+
+        if (debug_info.m_transition_active)
+        {
+            ImGui::Text("Transition: %.0f%%  elapsed %.3f / %.3f s",
+                        debug_info.m_transition_alpha * 100.0f,
+                        debug_info.m_transition_elapsed,
+                        debug_info.m_transition_duration);
+            ImGui::ProgressBar(debug_info.m_transition_alpha, ImVec2(-1.0f, 0.0f), "Crossfade");
+        }
+        else
+        {
+            ImGui::TextDisabled("Transition: inactive");
+        }
+
+        ImGui::Separator();
+        if (ImGui::CollapsingHeader("Signals", ImGuiTreeNodeFlags_DefaultOpen))
+        {
+            if (ImGui::BeginTable("AnimationSignals", 2, ImGuiTableFlags_Borders | ImGuiTableFlags_RowBg))
+            {
+                ImGui::TableSetupColumn("Name");
+                ImGui::TableSetupColumn("Value");
+                ImGui::TableHeadersRow();
+                for (const auto& signal : debug_info.m_signals)
+                {
+                    ImGui::TableNextRow();
+                    ImGui::TableNextColumn();
+                    ImGui::TextUnformatted(signal.first.c_str());
+                    ImGui::TableNextColumn();
+                    ImGui::TextUnformatted(signal.second.c_str());
+                }
+                ImGui::EndTable();
+            }
+        }
+
+        ImGui::Separator();
+        ImGui::Checkbox("Show conditions", &m_animation_debugger_show_conditions);
+        ImGui::Text("Outgoing transitions: %zu", debug_info.m_transitions.size());
+
+        for (const AnimationTransitionDebugInfo& transition : debug_info.m_transitions)
+        {
+            ImGui::PushID(transition.m_transition_id);
+            const ImVec4 transition_color =
+                transition.m_matched ? ImVec4(0.45f, 1.0f, 0.45f, 1.0f) : ImVec4(0.65f, 0.65f, 0.65f, 1.0f);
+            ImGui::TextColored(transition_color,
+                               "T%d -> %s [%s]",
+                               transition.m_transition_id,
+                               transition.m_target_state_name.c_str(),
+                               transition.m_matched ? "READY" : "BLOCKED");
+            ImGui::TextDisabled("duration %.3f s, conditions %zu",
+                                transition.m_transition_duration,
+                                transition.m_conditions.size());
+
+            if (m_animation_debugger_show_conditions)
+            {
+                if (transition.m_conditions.empty())
+                {
+                    ImGui::TextDisabled("  Unconditional");
+                }
+                for (const AnimationConditionDebugInfo& condition : transition.m_conditions)
+                {
+                    const ImVec4 condition_color =
+                        condition.m_matched ? ImVec4(0.45f, 1.0f, 0.45f, 1.0f)
+                                           : ImVec4(1.0f, 0.55f, 0.45f, 1.0f);
+                    ImGui::TextColored(condition_color,
+                                       "  %s: actual %s %s expected %s",
+                                       condition.m_parameter_name.c_str(),
+                                       condition.m_actual_value.c_str(),
+                                       condition.m_operator_name.c_str(),
+                                       condition.m_expected_value.c_str());
+                }
+            }
+            ImGui::Separator();
+            ImGui::PopID();
+        }
+
         ImGui::End();
     }
 

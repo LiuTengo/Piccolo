@@ -4,8 +4,12 @@
 
 #include "runtime/function/framework/component/component.h"
 
+#include <memory>
+
 namespace Piccolo
 {
+    class PhysicsScene;
+
     REFLECTION_TYPE(RigidBodyComponent)
     CLASS(RigidBodyComponent : public Component, WhiteListFields)
     {
@@ -27,6 +31,7 @@ namespace Piccolo
         META(Enable)
         RigidBodyComponentRes m_rigidbody_res;
 
-        uint32_t m_rigidbody_id {0xffffffff};
+        uint32_t                    m_rigidbody_id {0xffffffff};
+        std::weak_ptr<PhysicsScene> m_physics_scene;
     };
 } // namespace Piccolo

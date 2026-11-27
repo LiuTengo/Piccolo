@@ -422,7 +422,9 @@ namespace Piccolo
             for (int index = 0; index < emitter_count; ++index)
             {
                 const ParticleEmitterDesc& desc = swap_data.m_particle_submit_request->getEmitterDesc(index);
-                particle_pass->createEmitter(index, desc);
+                const ParticleEmitterID emitter_id =
+                    swap_data.m_particle_submit_request->getEmitterID(index);
+                particle_pass->createEmitter(index, emitter_id, desc);
             }
 
             particle_pass->initializeEmitters();

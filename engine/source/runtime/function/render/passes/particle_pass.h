@@ -5,6 +5,8 @@
 #include "runtime/function/render/render_pass.h"
 #include "runtime/function/render/render_resource.h"
 
+#include <unordered_map>
+
 namespace Piccolo
 {
     struct ParticlePassInitInfo : RenderPassInitInfo
@@ -70,7 +72,7 @@ namespace Piccolo
 
         void setEmitterCount(int count);
 
-        void createEmitter(int id, const ParticleEmitterDesc& desc);
+        void createEmitter(int id, ParticleEmitterID emitter_id, const ParticleEmitterDesc& desc);
 
         void initializeEmitters();
 
@@ -193,11 +195,12 @@ namespace Piccolo
         };
 
         std::vector<ParticleEmitterBufferBatch> m_emitter_buffer_batches;
+        std::unordered_map<ParticleEmitterID, size_t> m_emitter_batch_index_by_id;
         std::shared_ptr<ParticleManager>        m_particle_manager;
 
         DefaultRNG m_random_engine;
 
-        int m_emitter_count;
+        int m_emitter_count {0};
 
         static constexpr bool s_verbose_particle_alive_info {false};
 

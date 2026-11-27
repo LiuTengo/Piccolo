@@ -13,7 +13,7 @@ namespace Piccolo
 {
     struct ParticleEmitterTransformDesc
     {
-        ParticleEmitterID m_id;
+        ParticleEmitterID m_id {k_invalid_particke_emmiter_id};
         Vector4           m_position;
         Matrix4x4         m_rotation;
     };

@@ -11,6 +11,7 @@
 #include <cstring>
 #include <filesystem>
 #include <fstream>
+#include <map>
 #include <sstream>
 #include <utility>
 
@@ -408,14 +409,12 @@ namespace Piccolo
                  ++transition_index)
             {
                 const AnimationFSMEditorTransition& transition = m_transitions[transition_index];
-                const std::string                    source_name =
-                    transition.m_source >= 0 && transition.m_source < static_cast<int>(m_states.size())
-                        ? m_states[transition.m_source].m_state_name
-                        : "<invalid>";
+                const int source_index = findStateIndexById(transition.m_source);
+                const int target_index = findStateIndexById(transition.m_target);
+                const std::string source_name =
+                    source_index >= 0 ? m_states[source_index].m_state_name : "<invalid>";
                 const std::string target_name =
-                    transition.m_target >= 0 && transition.m_target < static_cast<int>(m_states.size())
-                        ? m_states[transition.m_target].m_state_name
-                        : "<invalid>";
+                    target_index >= 0 ? m_states[target_index].m_state_name : "<invalid>";
                 const std::string label = source_name + " -> " + target_name + "  [" +
                                           std::to_string(transition.m_conditions.size()) + " cond]";
                 ImGui::PushID(transition_index);
@@ -498,7 +497,8 @@ namespace Piccolo
                 {
                     if (hovered_state != m_transition_source)
                     {
-                        addTransition(m_transition_source, hovered_state);
+                        addTransition(m_states[m_transition_source].m_state_id,
+                                      m_states[hovered_state].m_state_id);
                     }
                     m_linking_transition = false;
                     m_transition_source  = -1;
@@ -618,23 +618,21 @@ namespace Piccolo
             ImGui::TextUnformatted("Transition");
             ImGui::Separator();
 
+            const int source_index = findStateIndexById(transition.m_source);
+            const int target_index = findStateIndexById(transition.m_target);
             const std::string source_label =
-                transition.m_source >= 0 && transition.m_source < static_cast<int>(m_states.size())
-                    ? m_states[transition.m_source].m_state_name
-                    : "<invalid>";
+                source_index >= 0 ? m_states[source_index].m_state_name : "<invalid>";
             const std::string target_label =
-                transition.m_target >= 0 && transition.m_target < static_cast<int>(m_states.size())
-                    ? m_states[transition.m_target].m_state_name
-                    : "<invalid>";
+                target_index >= 0 ? m_states[target_index].m_state_name : "<invalid>";
 
             if (ImGui::BeginCombo("Source", source_label.c_str()))
             {
                 for (int state_index = 0; state_index < static_cast<int>(m_states.size()); ++state_index)
                 {
                     if (ImGui::Selectable(m_states[state_index].m_state_name.c_str(),
-                                          transition.m_source == state_index))
+                                          transition.m_source == m_states[state_index].m_state_id))
                     {
-                        transition.m_source = state_index;
+                        transition.m_source = m_states[state_index].m_state_id;
                         markDirty();
                     }
                 }
@@ -645,9 +643,9 @@ namespace Piccolo
                 for (int state_index = 0; state_index < static_cast<int>(m_states.size()); ++state_index)
                 {
                     if (ImGui::Selectable(m_states[state_index].m_state_name.c_str(),
-                                          transition.m_target == state_index))
+                                          transition.m_target == m_states[state_index].m_state_id))
                     {
-                        transition.m_target = state_index;
+                        transition.m_target = m_states[state_index].m_state_id;
                         markDirty();
                     }
                 }
@@ -870,7 +868,7 @@ namespace Piccolo
         {
             const json11::Json& state_json = states[state_index];
             AnimationFSMEditorState state;
-            state.m_state_id   = state_index;
+            state.m_state_id   = state_json["state_id"].int_value();
             state.m_state_name = state_json["state_name"].string_value();
             state.m_clip_name  = state_json["clip_name"].string_value();
             state.m_loop       = state_json["loop"].bool_value();
@@ -888,8 +886,9 @@ namespace Piccolo
         for (const json11::Json& transition_json : transitions)
         {
             AnimationFSMEditorTransition transition;
-            transition.m_source = transition_json["source"].int_value();
-            transition.m_target = transition_json["target"].int_value();
+            transition.m_transition_id = transition_json["transition_id"].int_value();
+            transition.m_source        = transition_json["source"].int_value();
+            transition.m_target        = transition_json["target"].int_value();
             transition.m_transition_duration =
                 transition_json["transition_duration"].is_number()
                     ? static_cast<float>(transition_json["transition_duration"].number_value())
@@ -933,15 +932,12 @@ namespace Piccolo
             parameter_array.push_back(parameter_json);
         }
 
-        std::vector<std::vector<int>> outgoing_transitions(m_states.size());
+        std::map<int, std::vector<int>> outgoing_transitions;
         for (int transition_index = 0; transition_index < static_cast<int>(m_transitions.size());
              ++transition_index)
         {
             const int source = m_transitions[transition_index].m_source;
-            if (source >= 0 && source < static_cast<int>(m_states.size()))
-            {
-                outgoing_transitions[source].push_back(transition_index);
-            }
+            outgoing_transitions[source].push_back(m_transitions[transition_index].m_transition_id);
         }
 
         json11::Json::array state_array;
@@ -959,7 +955,7 @@ namespace Piccolo
             position_json["y"] = static_cast<double>(state.m_editor_y);
             state_json["editor_position"] = position_json;
             state_json["transitions"] =
-                json11::Json(outgoing_transitions[static_cast<size_t>(state_index)]);
+                json11::Json(outgoing_transitions[state.m_state_id]);
             state_array.push_back(state_json);
         }
 
@@ -967,6 +963,7 @@ namespace Piccolo
         for (const AnimationFSMEditorTransition& transition : m_transitions)
         {
             json11::Json::object transition_json;
+            transition_json["transition_id"]       = transition.m_transition_id;
             transition_json["source"]              = transition.m_source;
             transition_json["target"]              = transition.m_target;
             transition_json["transition_duration"] =
@@ -1184,7 +1181,12 @@ namespace Piccolo
     void AnimationFSMEditor::addState()
     {
         AnimationFSMEditorState state;
-        state.m_state_id   = static_cast<int>(m_states.size());
+        int next_state_id = 0;
+        for (const AnimationFSMEditorState& existing_state : m_states)
+        {
+            next_state_id = std::max(next_state_id, existing_state.m_state_id + 1);
+        }
+        state.m_state_id   = next_state_id;
         state.m_state_name = "NewState_" + std::to_string(state.m_state_id);
         state.m_clip_name.clear();
         state.m_loop     = true;
@@ -1201,19 +1203,26 @@ namespace Piccolo
         if (m_selected_state < 0 || m_selected_state >= static_cast<int>(m_states.size()))
             return;
 
-        const int deleted_index = m_selected_state;
+        const int deleted_index    = m_selected_state;
+        const int deleted_state_id = m_states[deleted_index].m_state_id;
         m_states.erase(m_states.begin() + deleted_index);
-        normalizeAfterStateDelete(deleted_index);
+        normalizeAfterStateDelete(deleted_state_id);
         m_selected_state      = -1;
         m_selected_transition = -1;
         markDirty();
     }
 
-    void AnimationFSMEditor::addTransition(int source, int target)
+    void AnimationFSMEditor::addTransition(int source_state_id, int target_state_id)
     {
         AnimationFSMEditorTransition transition;
-        transition.m_source = source;
-        transition.m_target = target;
+        int next_transition_id = 0;
+        for (const AnimationFSMEditorTransition& existing_transition : m_transitions)
+        {
+            next_transition_id = std::max(next_transition_id, existing_transition.m_transition_id + 1);
+        }
+        transition.m_transition_id = next_transition_id;
+        transition.m_source        = source_state_id;
+        transition.m_target        = target_state_id;
         m_transitions.push_back(transition);
         m_selected_transition = static_cast<int>(m_transitions.size()) - 1;
         m_selected_state      = -1;
@@ -1232,30 +1241,21 @@ namespace Piccolo
         markDirty();
     }
 
-    void AnimationFSMEditor::normalizeAfterStateDelete(int deleted_index)
+    void AnimationFSMEditor::normalizeAfterStateDelete(int deleted_state_id)
     {
-        for (int state_index = 0; state_index < static_cast<int>(m_states.size()); ++state_index)
-        {
-            m_states[state_index].m_state_id = state_index;
-        }
-
         std::vector<AnimationFSMEditorTransition> filtered;
         for (AnimationFSMEditorTransition transition : m_transitions)
         {
-            if (transition.m_source == deleted_index || transition.m_target == deleted_index)
+            if (transition.m_source == deleted_state_id || transition.m_target == deleted_state_id)
                 continue;
-            if (transition.m_source > deleted_index)
-                --transition.m_source;
-            if (transition.m_target > deleted_index)
-                --transition.m_target;
             filtered.push_back(transition);
         }
         m_transitions = std::move(filtered);
 
-        if (m_initial_state_id == deleted_index)
-            m_initial_state_id = 0;
-        else if (m_initial_state_id > deleted_index)
-            --m_initial_state_id;
+        if (m_initial_state_id == deleted_state_id)
+        {
+            m_initial_state_id = m_states.empty() ? 0 : m_states.front().m_state_id;
+        }
     }
 
     void AnimationFSMEditor::markDirty()
@@ -1281,6 +1281,16 @@ namespace Piccolo
         {
             if (m_parameters[parameter_index].m_name == parameter_name)
                 return parameter_index;
+        }
+        return -1;
+    }
+
+    int AnimationFSMEditor::findStateIndexById(int state_id) const
+    {
+        for (int state_index = 0; state_index < static_cast<int>(m_states.size()); ++state_index)
+        {
+            if (m_states[state_index].m_state_id == state_id)
+                return state_index;
         }
         return -1;
     }
@@ -1358,14 +1368,13 @@ namespace Piccolo
         if (transition_index < 0 || transition_index >= static_cast<int>(m_transitions.size()))
             return;
         const AnimationFSMEditorTransition& transition = m_transitions[transition_index];
-        if (transition.m_source < 0 || transition.m_source >= static_cast<int>(m_states.size()) ||
-            transition.m_target < 0 || transition.m_target >= static_cast<int>(m_states.size()))
-        {
+        const int source_index = findStateIndexById(transition.m_source);
+        const int target_index = findStateIndexById(transition.m_target);
+        if (source_index < 0 || target_index < 0)
             return;
-        }
 
-        const ImVec2 source_center = getStateCenter(canvas_origin, canvas_size, transition.m_source);
-        const ImVec2 target_center = getStateCenter(canvas_origin, canvas_size, transition.m_target);
+        const ImVec2 source_center = getStateCenter(canvas_origin, canvas_size, source_index);
+        const ImVec2 target_center = getStateCenter(canvas_origin, canvas_size, target_index);
         const float direction = target_center.x >= source_center.x ? 1.0f : -1.0f;
         const ImVec2 p0 {
             source_center.x + direction * kNodeHalfWidth * m_zoom,
@@ -1414,14 +1423,13 @@ namespace Piccolo
              ++transition_index)
         {
             const AnimationFSMEditorTransition& transition = m_transitions[transition_index];
-            if (transition.m_source < 0 || transition.m_source >= static_cast<int>(m_states.size()) ||
-                transition.m_target < 0 || transition.m_target >= static_cast<int>(m_states.size()))
-            {
+            const int source_index = findStateIndexById(transition.m_source);
+            const int target_index = findStateIndexById(transition.m_target);
+            if (source_index < 0 || target_index < 0)
                 continue;
-            }
 
-            const ImVec2 source_center = getStateCenter(canvas_origin, canvas_size, transition.m_source);
-            const ImVec2 target_center = getStateCenter(canvas_origin, canvas_size, transition.m_target);
+            const ImVec2 source_center = getStateCenter(canvas_origin, canvas_size, source_index);
+            const ImVec2 target_center = getStateCenter(canvas_origin, canvas_size, target_index);
             const float direction = target_center.x >= source_center.x ? 1.0f : -1.0f;
             const ImVec2 p0 {
                 source_center.x + direction * kNodeHalfWidth * m_zoom,

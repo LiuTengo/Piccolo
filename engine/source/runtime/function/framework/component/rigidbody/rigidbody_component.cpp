@@ -23,38 +23,48 @@ namespace Piccolo
             return;
         }
 
-        std::shared_ptr<PhysicsScene> physics_scene =
-            g_runtime_global_context.m_world_manager->getCurrentActivePhysicsScene().lock();
-        ASSERT(physics_scene);
+        m_physics_scene = g_runtime_global_context.m_world_manager->getCurrentActivePhysicsScene();
+        std::shared_ptr<PhysicsScene> physics_scene = m_physics_scene.lock();
+        if (!physics_scene)
+        {
+            LOG_ERROR("No physics scene for rigid body component");
+            return;
+        }
 
         m_rigidbody_id = physics_scene->createRigidBody(parent_transform->getTransformConst(), m_rigidbody_res);
     }
 
     RigidBodyComponent::~RigidBodyComponent()
     {
-        std::shared_ptr<PhysicsScene> physics_scene =
-            g_runtime_global_context.m_world_manager->getCurrentActivePhysicsScene().lock();
-        ASSERT(physics_scene);
-
-        physics_scene->removeRigidBody(m_rigidbody_id);
+        std::shared_ptr<PhysicsScene> physics_scene = m_physics_scene.lock();
+        if (physics_scene && m_rigidbody_id != s_invalid_rigidbody_id)
+        {
+            physics_scene->removeRigidBody(m_rigidbody_id);
+        }
     }
 
     void RigidBodyComponent::createRigidBody(const Transform& global_transform)
     {
-        std::shared_ptr<PhysicsScene> physics_scene =
-            g_runtime_global_context.m_world_manager->getCurrentActivePhysicsScene().lock();
-        ASSERT(physics_scene);
+        std::shared_ptr<PhysicsScene> physics_scene = m_physics_scene.lock();
+        if (!physics_scene)
+        {
+            LOG_ERROR("No physics scene for rigid body component");
+            return;
+        }
 
         m_rigidbody_id = physics_scene->createRigidBody(global_transform, m_rigidbody_res);
     }
 
     void RigidBodyComponent::removeRigidBody()
     {
-        std::shared_ptr<PhysicsScene> physics_scene =
-            g_runtime_global_context.m_world_manager->getCurrentActivePhysicsScene().lock();
-        ASSERT(physics_scene);
+        std::shared_ptr<PhysicsScene> physics_scene = m_physics_scene.lock();
+        if (!physics_scene || m_rigidbody_id == s_invalid_rigidbody_id)
+        {
+            return;
+        }
 
         physics_scene->removeRigidBody(m_rigidbody_id);
+        m_rigidbody_id = s_invalid_rigidbody_id;
     }
 
     void RigidBodyComponent::updateGlobalTransform(const Transform& transform, bool is_scale_dirty)
@@ -67,9 +77,11 @@ namespace Piccolo
         }
         else
         {
-            std::shared_ptr<PhysicsScene> physics_scene =
-                g_runtime_global_context.m_world_manager->getCurrentActivePhysicsScene().lock();
-            ASSERT(physics_scene);
+            std::shared_ptr<PhysicsScene> physics_scene = m_physics_scene.lock();
+            if (!physics_scene || m_rigidbody_id == s_invalid_rigidbody_id)
+            {
+                return;
+            }
 
             physics_scene->updateRigidBodyGlobalTransform(m_rigidbody_id, transform);
         }
@@ -77,9 +89,11 @@ namespace Piccolo
 
     void RigidBodyComponent::getShapeBoundingBoxes(std::vector<AxisAlignedBox>& out_bounding_boxes) const
     {
-        std::shared_ptr<PhysicsScene> physics_scene =
-            g_runtime_global_context.m_world_manager->getCurrentActivePhysicsScene().lock();
-        ASSERT(physics_scene);
+        std::shared_ptr<PhysicsScene> physics_scene = m_physics_scene.lock();
+        if (!physics_scene || m_rigidbody_id == s_invalid_rigidbody_id)
+        {
+            return;
+        }
 
         physics_scene->getShapeBoundingBoxes(m_rigidbody_id, out_bounding_boxes);
     }

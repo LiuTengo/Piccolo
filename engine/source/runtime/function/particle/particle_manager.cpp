@@ -57,10 +57,11 @@ namespace Piccolo
         RenderSwapContext& swap_context = g_runtime_global_context.m_render_system->getSwapContext();
         RenderSwapData&    swap_data    = swap_context.getLogicSwapData();
 
-        ParticleEmitterDesc desc(particle_res, transform_desc);
-        swap_data.addNewParticleEmitter(desc);
+        const ParticleEmitterID emitter_id = ParticleEmitterIDAllocator::alloc();
+        transform_desc.m_id                = emitter_id;
 
-        transform_desc.m_id = ParticleEmitterIDAllocator::alloc();
+        ParticleEmitterDesc desc(particle_res, transform_desc);
+        swap_data.addNewParticleEmitter(emitter_id, desc);
     }
 
     const GlobalParticleRes& ParticleManager::getGlobalParticleRes() { return m_global_particle_res; }

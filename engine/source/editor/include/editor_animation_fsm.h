@@ -29,6 +29,7 @@ namespace Piccolo
 
     struct AnimationFSMEditorTransition
     {
+        int                      m_transition_id {0};
         int                      m_source {0};
         int                      m_target {0};
         float                    m_transition_duration {0.15f};
@@ -70,13 +71,14 @@ namespace Piccolo
 
         void addState();
         void deleteSelectedState();
-        void addTransition(int source, int target);
+        void addTransition(int source_state_id, int target_state_id);
         void deleteSelectedTransition();
-        void normalizeAfterStateDelete(int deleted_index);
+        void normalizeAfterStateDelete(int deleted_state_id);
         void markDirty();
 
         std::string getParameterType(const std::string& parameter_name) const;
         int         findParameterIndex(const std::string& parameter_name) const;
+        int         findStateIndexById(int state_id) const;
         std::string getOperatorName(CompareOperator op) const;
         void        applyDefaultValue(FSMCondition& condition, const std::string& parameter_type);
 

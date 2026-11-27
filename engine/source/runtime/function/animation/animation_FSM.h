@@ -4,6 +4,7 @@
 
 #include <functional>
 #include <json11.hpp>
+#include <unordered_map>
 #include <vector>
 namespace Piccolo
 {
@@ -23,11 +24,34 @@ namespace Piccolo
         std::string parameter_name;
         CompareOperator op {CompareOperator::Equal};
         json11::Json value;
+
+        bool evaluate(const json11::Json& signal_value) const {
+            switch (op) {
+            case CompareOperator::Equal:
+                return signal_value == value;
+            case CompareOperator::NotEqual:
+                return signal_value != value;
+            case CompareOperator::Greater:
+                return signal_value.is_number() && value.is_number() &&
+                       signal_value.number_value() > value.number_value();
+            case CompareOperator::Less:
+                return signal_value.is_number() && value.is_number() &&
+                       signal_value.number_value() < value.number_value();
+            case CompareOperator::GreaterEqual:
+                return signal_value.is_number() && value.is_number() &&
+                       signal_value.number_value() >= value.number_value();
+            case CompareOperator::LessEqual:
+                return signal_value.is_number() && value.is_number() &&
+                       signal_value.number_value() <= value.number_value();
+            }
+            return false;
+        }
     };
 
     struct FSMTransition{
-        uint16_t source;
-        uint16_t target;
+		uint16_t transition_id {0};
+        uint16_t source {0};
+        uint16_t target {0};
 		float transition_duration{ 0.15f };
 
 		std::vector<FSMCondition> conditions;
@@ -41,27 +65,7 @@ namespace Piccolo
                     return false;
 				}
 
-                const json11::Json& signal_value = found_iter->second;
-                switch (condition.op) {
-                case CompareOperator::Equal:
-                    if (signal_value != condition.value) return false;
-                    break;
-                case CompareOperator::NotEqual:
-                    if (signal_value == condition.value) return false;
-                    break;
-                case CompareOperator::Greater:
-                    if (!signal_value.is_number() || !condition.value.is_number() || signal_value.number_value() <= condition.value.number_value()) return false;
-                    break;
-                case CompareOperator::Less:
-                    if (!signal_value.is_number() || !condition.value.is_number() || signal_value.number_value() >= condition.value.number_value()) return false;
-                    break;
-                case CompareOperator::GreaterEqual:
-                    if (!signal_value.is_number() || !condition.value.is_number() || signal_value.number_value() < condition.value.number_value()) return false;
-                    break;
-                case CompareOperator::LessEqual:
-                    if (!signal_value.is_number() || !condition.value.is_number() || signal_value.number_value() > condition.value.number_value()) return false;
-                    break;
-                }
+                if (!condition.evaluate(found_iter->second)) return false;
             }
             return true;
         }
@@ -70,7 +74,7 @@ namespace Piccolo
     struct FSMNode {
         std::string state_name; //暂时不考虑子节点的事，先做一个简单的FSM
         std::string clip_name;
-        uint16_t state_id;
+        uint16_t state_id {0};
         bool loop = true;
         std::vector<uint16_t> transitions;
 
@@ -87,11 +91,11 @@ namespace Piccolo
     class AnimationFSM
     {
     public:
-        std::vector<FSMNode> m_nodes;
-        std::vector<FSMTransition> m_transitions;
+        std::unordered_map<uint16_t, FSMNode> m_nodes;
+        std::unordered_map<uint16_t, FSMTransition> m_transitions;
 
 	protected:
-		uint16_t m_current_state_idx = 0;
+		uint16_t m_current_state_id = 0;
 
     public:
 		//从json文件中反序列化FSM
@@ -104,13 +108,13 @@ namespace Piccolo
 
         bool update_fsm(const json11::Json::object& signals, FSMUpdateRes& res);
         Reflection::ReflectionPtr<ClipBase> getCurrentClipBase(const AnimationComponentRes& animation_res) const;
-        bool hasValidState() const { return !m_nodes.empty() && m_current_state_idx < m_nodes.size(); }
+        bool hasValidState() const { return !m_nodes.empty() && m_nodes.find(m_current_state_id) != m_nodes.end(); }
 
         const FSMNode& getCurrentNode() const {
-            if (m_current_state_idx >= m_nodes.size()) {
+            if (m_nodes.find(m_current_state_id) == m_nodes.end()) {
                 throw std::out_of_range("Current state ID is out of range of nodes.");
 			}
-            return m_nodes[m_current_state_idx];
+            return m_nodes.at(m_current_state_id);
         }
     };
 } // namespace Piccolo
